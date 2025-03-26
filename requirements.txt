@@ -1,0 +1,22 @@
+# File: requirements.txt
+
+# Core Data Handling
+pandas
+numpy
+
+# Plotting & Visualization
+matplotlib
+seaborn
+
+# Notebook Environment (for interactive development)
+notebook
+jupyterlab
+
+# Add other libraries later as needed:
+scikit-learn
+statsmodels
+prophet
+requests
+Flask
+Streamlit
+Dash

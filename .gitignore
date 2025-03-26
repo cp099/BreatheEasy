@@ -1,0 +1,168 @@
+# File: .gitignore
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# Environments - VERY IMPORTANT!
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# RStudio project settings
+.Rproj.user/
+
+# MKDocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static checker
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# VS Code - Optional: ignore all except project-specific settings
+#.vscode/*
+#!.vscode/settings.json
+#!.vscode/tasks.json
+#!.vscode/launch.json
+#!.vscode/extensions.json
+#*.code-workspace
+
+### BREATHEEASY Project Specific ###
+
+# Ignore saved models (unless using Git LFS)
+models/*.pkl
+models/*.h5
+models/*.joblib
+
+# Ignore large data files in the data directory if not tracked
+# Example: data/raw/very_large_file.zip
+# data/Post-Processing/CSV_Files/* # Uncomment if CSVs are too large for Git
+
+# Configuration files containing secrets (if not using .env)
+# config/secrets.yaml
+
+# macOS specific
+*.DS_Store
+
+# Temporary / System Files
+~$*
+*.smbdelete*
+
+# Ignore Excel files (assuming CSV is primary)
+*.xlsx
+# Or be more specific if needed:
+# data/Post-Processing/XLSX_Files/*.xlsx
+
+# Ignore individual city CSV files if Master is sufficient
+data/Post-Processing/CSV_Files/Bangalore_AQI_Dataset.csv
+data/Post-Processing/CSV_Files/Chennai_AQI_Dataset.csv
+data/Post-Processing/CSV_Files/Delhi_AQI_Dataset.csv
+data/Post-Processing/CSV_Files/Hyderabad_AQI_Dataset.csv
+data/Post-Processing/CSV_Files/Mumbai_AQI_Dataset.csv
+# Maybe ignore the 'Encoded' one too if Master is final?
+data/Post-Processing/CSV_Files/Encoded_AQI_Dataset.csv
+
+# Keep the main dataset (Make sure this line IS NOT present if you want to track it)
+# !data/Post-Processing/CSV_Files/Master_AQI_Dataset.csv
