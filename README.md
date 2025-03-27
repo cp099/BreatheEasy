@@ -36,7 +36,7 @@ BREATHEEASY/
 
 ### 1. Clone the Repository
 ```bash
-git clone <your-repo-url>
+git clone <https://github.com/cp099/BreatheEasy.git>
 cd BREATHEEASY
 ```
 
