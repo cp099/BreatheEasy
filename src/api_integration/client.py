@@ -98,7 +98,60 @@ def get_city_aqi_data(city_name):
         # Catch any other unexpected errors
         logging.error(f"An unexpected error occurred in get_city_aqi_data: {e}", exc_info=True)
         return None
+# (Keep existing imports, config, CITY_STATION_MAP if you added it - though we won't use it now, and get_city_aqi_data function)
 
+
+# --- Function specifically for Section 3 ---
+
+def get_current_aqi_for_city(city_name):
+    """
+    Fetches the current overall AQI value for a specific city.
+    This function is tailored for Section 3 of the application.
+
+    Args:
+        city_name (str): The name of the city (e.g., 'Delhi').
+
+    Returns:
+        dict: A dictionary containing the city name, current AQI, and timestamp,
+              e.g., {'city': 'Delhi', 'aqi': 178, 'time': '2025-04-21 12:00:00'}
+        None: If data cannot be fetched, the API response is invalid,
+              or the AQI value is missing.
+    """
+    logging.info(f"Getting current AQI value specifically for Section 3 for city: {city_name}")
+
+    # Call the main data fetching function (using city name query)
+    full_data = get_city_aqi_data(city_name) # Uses city name as query target now
+
+    if full_data and full_data.get("status") == "ok" and "data" in full_data:
+        api_data = full_data["data"]
+        try:
+            # Extract the necessary fields
+            aqi = int(api_data.get("aqi", None)) # Ensure AQI is integer if possible
+            station_name = api_data.get("city", {}).get("name", city_name) # Get specific station if available
+            timestamp = api_data.get("time", {}).get("s", None)
+
+            if aqi is not None and timestamp is not None:
+                result = {
+                    "city": city_name, # Return the requested city name
+                    "aqi": aqi,
+                    "station": station_name, # Include the station providing the data
+                    "time": timestamp
+                }
+                logging.info(f"Successfully extracted current AQI info for {city_name}: {result}")
+                return result
+            else:
+                logging.error(f"Could not extract 'aqi' or 'time' from API data for {city_name}. Data: {api_data}")
+                return None
+
+        except (ValueError, TypeError) as e:
+             logging.error(f"Error processing AQI data for {city_name}: {e}. Data: {api_data}", exc_info=True)
+             return None
+        except Exception as e: # Catch any other unexpected errors during extraction
+             logging.error(f"Unexpected error extracting AQI data for {city_name}: {e}", exc_info=True)
+             return None
+    else:
+        logging.warning(f"Failed to get valid API response for {city_name} to extract current AQI.")
+        return None
 
 # --- Example Usage Block (for testing the module directly) ---
 if __name__ == "__main__":
@@ -106,51 +159,47 @@ if __name__ == "__main__":
     print(" Running api_integration/client.py Tests ")
     print("="*30 + "\n")
 
-    # --- Test with a valid city ---
-    test_city = "Delhi" # Or try 'Mumbai', 'Bangalore', etc.
-    print(f"[Test 1: Fetching data for '{test_city}']")
-    city_data = get_city_aqi_data(test_city)
-
-    if city_data and city_data.get("status") == "ok":
-        print(f"Success! Received data for '{test_city}'.")
-        # Extract and display key information
-        aqi = city_data.get("data", {}).get("aqi", "N/A")
-        station = city_data.get("data", {}).get("city", {}).get("name", "N/A")
-        time = city_data.get("data", {}).get("time", {}).get("s", "N/A")
-        pollutants = city_data.get("data", {}).get("iaqi", {}) # Individual pollutant data
-
-        print(f"  Station: {station}")
-        print(f"  Overall AQI: {aqi}")
-        print(f"  Timestamp: {time}")
-        print("  Pollutant Values (iaqi):")
-        if pollutants:
-            for pollutant, details in pollutants.items():
-                print(f"    - {pollutant.upper()}: {details.get('v', 'N/A')}")
-        else:
-            print("    - No individual pollutant data found.")
+    # --- Test 1: Fetching FULL data for a valid city ---
+    test_city_full = "Delhi"
+    print(f"[Test 1: Fetching FULL data for '{test_city_full}']")
+    city_data_full = get_city_aqi_data(test_city_full)
+    if city_data_full and city_data_full.get("status") == "ok":
+        print(f"Success! Received FULL data for '{test_city_full}'.")
+        # Optional: print parts of the full data if needed for debug
+        # print(city_data_full.get("data", {}).get("iaqi", {}))
     else:
-        print(f"Failure! Could not retrieve valid data for '{test_city}'. Check logs for details.")
+        print(f"Failure! Could not retrieve valid FULL data for '{test_city_full}'.")
 
 
-    # --- Test with a potentially invalid city ---
-    print("\n[Test 2: Fetching data for 'Atlantis']")
+    # --- Test 2: Fetching ONLY CURRENT AQI for Section 3 ---
+    test_city_sec3 = "Mumbai" # Test a different city
+    print(f"\n[Test 2: Fetching CURRENT AQI (Section 3) for '{test_city_sec3}']")
+    current_aqi_info = get_current_aqi_for_city(test_city_sec3)
+    if current_aqi_info:
+         print(f"Success! Received Current AQI Info for {test_city_sec3}:")
+         print(f"  AQI: {current_aqi_info.get('aqi')}")
+         print(f"  Station: {current_aqi_info.get('station')}")
+         print(f"  Timestamp: {current_aqi_info.get('time')}")
+    else:
+         print(f"Failure! Could not retrieve current AQI info for {test_city_sec3}.")
+
+
+    # --- Test 3: Fetching data for an invalid city ---
+    print("\n[Test 3: Fetching data for 'Atlantis']")
     invalid_city_data = get_city_aqi_data("Atlantis")
     if invalid_city_data is None:
-        print("Success! Correctly handled non-existent city 'Atlantis' (returned None).")
+        print("Success! Correctly handled non-existent city 'Atlantis' for full data (returned None).")
     else:
         print("Failure! Expected None for 'Atlantis' but received some data.")
 
-    # --- Test without API Key (if possible to simulate) ---
-    # You could temporarily rename your .env file and run this test,
-    # but remember to rename it back afterwards. Or comment out the token loading temporarily.
-    print("\n[Test 3: Check for API Key Missing (Manual Simulation Needed)]")
-    # AQICN_TOKEN = None # Temporarily unset for testing - uncomment carefully
-    # missing_key_data = get_city_aqi_data("Delhi")
-    # if missing_key_data is None:
-    #     print("Success! Correctly handled missing API key (returned None).")
-    # else:
-    #     print("Failure! Expected None when API key is missing.")
-    # Remember to restore AQICN_TOKEN loading if you modify it above.
+    invalid_aqi_info = get_current_aqi_for_city("Atlantis")
+    if invalid_aqi_info is None:
+         print("Success! Correctly handled non-existent city 'Atlantis' for current AQI (returned None).")
+    else:
+         print("Failure! Expected None for 'Atlantis' current AQI but received data.")
+
+    # --- Test 4: Check for API Key Missing (Manual Simulation Needed) ---
+    print("\n[Test 4: Check for API Key Missing (Manual Simulation Needed)]")
     print("(Test requires manual modification or checking logs for 'AQICN_API_TOKEN not found')")
 
 
