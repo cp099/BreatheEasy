@@ -20,3 +20,6 @@ requests
 Flask
 Streamlit
 Dash
+
+# For loading environment variables from .env file
+python-dotenv
