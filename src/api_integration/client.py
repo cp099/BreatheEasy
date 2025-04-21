@@ -4,6 +4,7 @@ import requests
 import os
 import logging
 from dotenv import load_dotenv
+from src.health_rules.interpreter import interpret_pollutant_risks
 
 # --- Configuration ---
 # Load environment variables from .env file in the project root
@@ -152,6 +153,54 @@ def get_current_aqi_for_city(city_name):
     else:
         logging.warning(f"Failed to get valid API response for {city_name} to extract current AQI.")
         return None
+# (Keep existing imports including the new one, config, functions get_city_aqi_data, get_current_aqi_for_city)
+
+
+# --- Function specifically for Section 5 ---
+
+def get_current_pollutant_risks_for_city(city_name):
+    """
+    Fetches real-time pollutant data for a city and interprets potential
+    health risks based on CPCB-derived thresholds.
+    This function is tailored for Section 5 of the application.
+
+    Args:
+        city_name (str): The name of the city (e.g., 'Delhi').
+
+    Returns:
+        dict: A dictionary containing the city name, timestamp, the raw iaqi data,
+              and a list of identified health risk strings.
+              e.g., {'city': 'Delhi', 'time': '...', 'pollutants': {...}, 'risks': ['PM25 (Very Poor): ...']}
+        None: If data cannot be fetched or interpretation fails.
+    """
+    logging.info(f"Getting current pollutant risks (Section 5) for city: {city_name}")
+
+    # 1. Fetch the full real-time data
+    full_data = get_city_aqi_data(city_name)
+
+    if full_data and full_data.get("status") == "ok" and "data" in full_data:
+        api_data = full_data["data"]
+        iaqi_data = api_data.get("iaqi")
+        timestamp = api_data.get("time", {}).get("s")
+
+        if iaqi_data and timestamp:
+            # 2. Interpret the risks using the iaqi data
+            risk_list = interpret_pollutant_risks(iaqi_data)
+
+            result = {
+                "city": city_name,
+                "time": timestamp,
+                "pollutants": iaqi_data, # Include the raw pollutant data
+                "risks": risk_list # Include the list of identified risk strings
+            }
+            logging.info(f"Successfully interpreted pollutant risks for {city_name}. Risks found: {len(risk_list)}")
+            return result
+        else:
+            logging.error(f"Could not extract 'iaqi' or 'time' data for risk interpretation for {city_name}. Data: {api_data}")
+            return None
+    else:
+        logging.warning(f"Failed to get valid API response for {city_name} for risk interpretation.")
+        return None
 
 # --- Example Usage Block (for testing the module directly) ---
 if __name__ == "__main__":
@@ -201,6 +250,24 @@ if __name__ == "__main__":
     # --- Test 4: Check for API Key Missing (Manual Simulation Needed) ---
     print("\n[Test 4: Check for API Key Missing (Manual Simulation Needed)]")
     print("(Test requires manual modification or checking logs for 'AQICN_API_TOKEN not found')")
+
+    # --- Test 5: Get Current Pollutant Risks (Section 5) ---
+    test_city_sec5 = "Delhi" # Reuse Delhi data
+    print(f"\n[Test 5: Fetching CURRENT POLLUTANT RISKS (Section 5) for '{test_city_sec5}']")
+    current_risks_info = get_current_pollutant_risks_for_city(test_city_sec5)
+    if current_risks_info:
+        print(f"Success! Received Current Pollutant Risks Info for {test_city_sec5}:")
+        print(f"  Timestamp: {current_risks_info.get('time')}")
+        # Optionally print raw pollutants for verification
+        # print(f"  Pollutants (iaqi): {current_risks_info.get('pollutants')}")
+        print("  Identified Risks:")
+        if current_risks_info['risks']:
+            for risk in current_risks_info['risks']:
+                print(f"    - {risk}")
+        else:
+            print("    - None")
+    else:
+        print(f"Failure! Could not retrieve current pollutant risks info for {test_city_sec5}.")
 
 
     print("\n" + "="*30)
