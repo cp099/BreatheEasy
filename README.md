@@ -41,7 +41,7 @@ BREATHEEASY/
 │       └── CSV_Files/
 │           └── Master_AQI_Dataset.csv         # Main historical dataset
 ├── data_processing_code/
-│   └── Catogorical_Encoding.py                # Code used to Encode the City Name's using One Hot Encoding
+│   └── Catogorical_Encoding.py                # Code to encode city names using one-hot encoding
 ├── models/                                    # Saved Prophet models
 │   ├── Bangalore_prophet_model_v2.json
 │   ├── Chennai_prophet_model_v2.json
