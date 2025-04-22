@@ -1,109 +1,167 @@
-# BreatheEasy - AQI Analysis and Forecasting
+# BreatheEasy - AQI Analysis and Forecasting Backend
 
 ## Overview
-BreatheEasy is a project designed to analyze historical Air Quality Index (AQI) data, provide insights into associated health risks, and predict future AQI levels for major Indian cities. The system not only interprets AQI values to indicate potential respiratory diseases but also forecasts AQI trends for the upcoming week using historical data and pollutant trends.
+BreatheEasy provides the backend logic for a system designed to analyze historical Air Quality Index (AQI) data, fetch real-time AQI and weather information, provide insights into associated health risks based on the Indian CPCB standards, and predict future AQI levels for major Indian cities (Delhi, Mumbai, Bangalore, Chennai, Hyderabad).
+
+The system interprets both current pollutant levels and predicted AQI values to indicate potential respiratory health implications, aiming to empower users with actionable air quality information. This repository contains the complete backend Python code, including data processing modules, API clients, ML model training scripts, prediction logic, and health rule interpreters.
 
 ## Problem Statement
-Air quality index (AQI) data is widely available, but most weather websites only provide numerical values without clear insights into the health risks associated with air pollution. This lack of detailed information makes it difficult for individuals, especially those with respiratory conditions, to understand the specific health threats they face. Additionally, accurate AQI forecasting is essential to help people prepare for worsening air quality in advance.
+Air quality index (AQI) data is widely available, but translating numerical values into clear health risks remains a challenge for many users, especially those with respiratory conditions. Furthermore, anticipating changes in air quality requires reliable forecasting. BreatheEasy aims to bridge this gap by providing accessible interpretations of current and future air quality based on established standards and predictive modeling.
 
-This project aims to bridge that gap by developing a system that provides both real-time health risk analysis and predictive insights. By offering timely warnings and educational information, BreatheEasy empowers individuals to take proactive measures for their respiratory health.
+## Core Backend Features Implemented
+*(Mapping to original UI sections)*
 
-## Features
-- **Historical Summary:** Displays trends and summaries of past AQI data per city.
-- **Educational Info:** Explains AQI, pollutants, and health risks.
-- **Current AQI:** Shows real-time AQI using an external API.
-- **AQI Forecast:** Predicts AQI for the next week using machine learning models.
-- **Current Pollutants & Risks:** Displays real-time pollutant levels and associated immediate health triggers.
-- **Predicted Risks:** Forecasts potential health risks for the upcoming week based on predicted AQI levels.
+- **(Sec 0.5) Current Weather:** Fetches real-time weather conditions (temp, description, icon, etc.) using the WeatherAPI.com service (`src/api_integration/weather_client.py`).
+- **(Sec 1) Historical Summary:** Provides functions to load historical data and retrieve AQI trends and distributions per city (`src/analysis/historical.py`).
+- **(Sec 2) Educational Info:** Contains the definition of AQI and the CPCB India AQI scale with associated health implications (`src/health_rules/info.py`). Also includes pollutant-specific health risk thresholds (`src/health_rules/interpreter.py`).
+- **(Sec 3) Current AQI:** Fetches real-time AQI from specified city stations via the AQICN API (`src/api_integration/client.py`).
+- **(Sec 4) AQI Forecast:** Trains city-specific Prophet models (`src/modeling/train.py`) and provides functions to generate a 5-day AQI forecast, optionally adjusted using the latest live AQI (`src/modeling/predictor.py`). Includes UI-friendly formatting.
+- **(Sec 5) Current Pollutants & Risks:** Fetches real-time pollutant data via AQICN API (`client.py`) and interprets immediate health risks based on CPCB-derived thresholds (`interpreter.py`).
+- **(Sec 6) Predicted Risks:** Takes the 5-day AQI forecast and interprets the potential health implications for each day based on the predicted AQI level and CPCB categories (`predictor.py` calls functions in `info.py`).
+
+## Technology Stack
+- **Language:** Python 3.x
+- **Core Libraries:**
+  - Pandas: Data manipulation and analysis.
+  - Prophet (by Meta): Time series forecasting.
+  - Requests: HTTP requests for external APIs.
+  - python-dotenv: Managing environment variables (API keys).
+  - scikit-learn: Evaluation metrics (MAE, RMSE, MAPE).
+  - CmdStanPy: Backend for Prophet model fitting.
+- **Data Sources**:
+  - Historical AQI: `Master_AQI_Dataset.csv` (user provided). The AQI data was sourced from the Central Pollution Control Board (CPCB), and pollutant concentrations were calculated using CPCB standards and formulas to ensure accuracy.
+  - Real-time AQI/Pollutants: [World Air Quality Index Project (aqicn.org)](https://aqicn.org/api/)
+  - Real-time Weather: [WeatherAPI.com](https://www.weatherapi.com/)
 
 ## Project Structure
 ```
 BREATHEEASY/
-├── config/                # Configuration files
-├── data/                  # Raw and processed data
-├── data_processing_code/   # Scripts used for initial data processing
-├── models/                # Saved machine learning models
-├── notebook/              # Jupyter notebooks for exploration and analysis
-├── src/                   # Main source code (modules, app logic)
-├── tests/                 # Unit and integration tests
-├── .gitignore             # Files ignored by Git
-├── README.md              # This file
-├── requirements.txt       # Project dependencies
-└── .env                   # Environment variables (API keys, etc.)
+├── data/
+│   └── Post-Processing/
+│       └── CSV_Files/
+│           └── Master_AQI_Dataset.csv  # Main historical dataset
+├── models/                             # Saved Prophet models (*_prophet_model_v2.json)
+├── notebook/                           # Jupyter notebooks for exploration/development
+│   └── 2_AQI_Forecasting_Development.ipynb
+├── src/                                # Main backend source code
+│   ├── __init__.py
+│   ├── analysis/
+│   │   ├── __init__.py
+│   │   └── historical.py
+│   ├── api_integration/
+│   │   ├── __init__.py
+│   │   ├── client.py                   # AQICN API client
+│   │   └── weather_client.py          # WeatherAPI.com client
+│   ├── health_rules/
+│   │   ├── __init__.py
+│   │   ├── info.py                    # AQI scale definitions (CPCB)
+│   │   └── interpreter.py            # Pollutant risk interpretation (Sec 5)
+│   └── modeling/
+│       ├── __init__.py
+│       ├── predictor.py              # Loads models, generates forecasts (Sec 4 & 6)
+│       └── train.py                  # Trains and saves models for all cities
+├── .env                               # Environment variables (API keys) - MUST BE CREATED MANUALLY
+├── .gitignore                         # Files/directories ignored by Git
+├── requirements.txt                   # Python dependencies
+└── README.md                          # This file
 ```
 
 ## Setup Instructions
 
 ### 1. Clone the Repository
 ```bash
-git clone <https://github.com/cp099/BreatheEasy.git>
-cd BREATHEEASY
+git clone https://github.com/cp099/BreatheEasy.git # Replace with your actual repo URL if different
+cd BreatheEasy
 ```
 
 ### 2. Create and Activate a Virtual Environment
+It is highly recommended to use a virtual environment.
+
 ```bash
+# Create
+python3 -m venv venv
+# or
 python -m venv venv
-# Activate on Windows
-venv\Scripts\activate
-# Activate on macOS/Linux
+
+# Activate on macOS / Linux
 source venv/bin/activate
+
+# Activate on Windows (Command Prompt)
+venv\Scripts\activate.bat
+
+# Activate on Windows (PowerShell)
+venv\Scripts\Activate.ps1
 ```
 
 ### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
+> **Note:** Prophet may require dependencies like `cmdstanpy`. Refer to Prophet’s installation guide if issues occur.
 
-### 4. Place Data Files
-Ensure `Master_AQI_Dataset.csv` is located in:
+### 4. Place Data File
+Ensure your historical data file is located at:
 ```
-data/Post-Processing/CSV_Files/
+BreatheEasy/data/Post-Processing/CSV_Files/Master_AQI_Dataset.csv
 ```
 
-### 5. API Keys (if applicable)
-- Create a `.env` file in the root directory.
-- Add necessary API keys:
-  ```env
-  AQI_API_KEY=your_key_here
-  ```
-- Ensure `.env` is listed in `.gitignore`.
+### 5. Setup API Keys (.env file)
+Create a `.env` file in the root directory and add:
+```
+AQICN_API_TOKEN=YOUR_ACTUAL_AQICN_TOKEN_HERE
+WEATHERAPI_API_KEY=YOUR_ACTUAL_WEATHERAPI_KEY_HERE
+```
+> Ensure `.env` is included in `.gitignore` (already done).
 
-## Usage
-
-### Running the Analysis Notebook
+### 6. Train Forecast Models (Optional if already committed)
 ```bash
-jupyter notebook notebook/1_Historical_Analysis.ipynb
+python src/modeling/train.py
 ```
 
-### Starting the Web App (if applicable)
+## Usage (Testing Backend Components)
+Run the following from the project root (`BreatheEasy/`):
+
 ```bash
-python src/app/main.py
+# Test AQICN API Client
+python src/api_integration/client.py
+
+# Test WeatherAPI Client
+python src/api_integration/weather_client.py
+
+# Test AQI Scale Info
+python src/health_rules/info.py
+
+# Test Pollutant Risk Interpreter
+python src/health_rules/interpreter.py
+
+# Test Model Predictor
+python src/modeling/predictor.py
+
+# Test Historical Analysis Module
+python src/analysis/historical.py
+
+# Run Development Notebook
+jupyter notebook notebook/2_AQI_Forecasting_Development.ipynb
 ```
+
+## Integrating into an Application
+You can import functions like `generate_forecast`, `get_current_weather`, `get_predicted_weekly_risks`, etc., into a web framework (Flask, FastAPI, Streamlit) for UI integration.
 
 ## Contributing
-If you'd like to contribute, please follow these guidelines:
-1. Fork the repository and create a new branch.
-2. Make your changes and commit with clear messages.
-3. Submit a pull request for review.
+Contributions are welcome! Fork the repo, create a branch, commit your changes, and open a PR with a clear description.
 
 ## License
-This project is licensed under the **MIT License**. See `LICENSE` for more details.
+This project is licensed under the MIT License.
 
 ---
 
-## Additional Setup: `BREATHEEASY/src/__init__.py`
-- **Action:** Create this *empty* file inside the `src` directory.
-- **Purpose:** Marks `src` as a Python package, allowing structured imports.
-- **Content:** The file can remain empty or include a basic comment.
+**Key Updates Made:**
 
-```python
-# File: src/__init__.py
-# This file intentionally left blank to mark 'src' as a Python package.
-```
-
----
-
-### Next Steps
-- Finalize the problem statement and ensure it reflects all project goals.
-- Update setup instructions based on project progress.
-- Document API endpoints and model details for easy reference.
+- Refined Overview and Feature descriptions.
+- Added a Technology Stack section.
+- Updated the Project Structure.
+- Clarified and detailed setup steps.
+- Emphasized API key setup and data placement.
+- Explained optional model retraining.
+- Added backend module test instructions.
+- Suggested integration path with web frameworks.
