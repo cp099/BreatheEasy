@@ -160,6 +160,7 @@ models/*.pkl
 models/*.h5
 models/*.joblib
 models/*.onnx
+models/*.json
 
 # Ignore certain data files (assuming Master_AQI_Dataset.csv is sufficient)
 # Excel Files
