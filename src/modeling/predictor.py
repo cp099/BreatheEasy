@@ -185,6 +185,46 @@ def generate_forecast(target_city, days_ahead=5, apply_residual_correction=True,
     log.info(f"Forecast generation complete for {target_city}.")
     return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper', 'residual', 'yhat_adjusted']]
 
+# --- Helper Function for UI Formatting ---
+
+def format_forecast_for_ui(forecast_df):
+    """
+    Formats the forecast DataFrame into a list of dictionaries suitable for UI (JSON).
+
+    Args:
+        forecast_df (pd.DataFrame): The DataFrame returned by generate_forecast.
+
+    Returns:
+        list: A list of dictionaries, each with 'date' (YYYY-MM-DD string)
+              and 'predicted_aqi' (rounded integer). Returns empty list if input is None or empty.
+              Example: [{'date': '2025-01-01', 'predicted_aqi': 156}, ...]
+    """
+    if forecast_df is None or forecast_df.empty:
+        return []
+
+    # Select relevant columns and create list
+    ui_data = []
+    for index, row in forecast_df.iterrows():
+        try:
+             # Ensure date is formatted correctly, handle potential NaT
+             date_str = pd.to_datetime(row['ds']).strftime('%Y-%m-%d') if pd.notna(row['ds']) else None
+             # Use the adjusted forecast, round to nearest integer, handle potential NaN/None
+             predicted_aqi = int(round(row['yhat_adjusted'])) if pd.notna(row['yhat_adjusted']) else None
+
+             if date_str is not None and predicted_aqi is not None:
+                 ui_data.append({
+                     'date': date_str,
+                     'predicted_aqi': predicted_aqi
+                 })
+             else:
+                  log.warning(f"Skipping row due to missing date or predicted_aqi: {row}")
+
+        except Exception as e:
+             log.error(f"Error formatting row {index} for UI: {row}. Error: {e}")
+             continue # Skip row on error
+
+    return ui_data
+
 
 # --- Example Usage Block (for testing this module directly) ---
 if __name__ == "__main__":
@@ -249,6 +289,16 @@ if __name__ == "__main__":
     else:
         print("Failure! Expected None for city with no model.")
 
+
+    # --- Test 6: Format Forecast for UI ---
+    print("\n--- Test 6: Formatting Forecast for UI ---")
+    if forecast_api is not None: # Use the result from the API corrected test
+        ui_formatted_data = format_forecast_for_ui(forecast_api)
+        print(f"UI Formatted Data for {test_city} (API Corrected Forecast):")
+        import pprint # Use pprint for cleaner dictionary printing
+        pprint.pprint(ui_formatted_data)
+    else:
+        print(f"Skipping UI format test as '{test_city}' forecast was not generated.")
 
     print("\n" + "="*30)
     print(" predictor.py Tests Finished ")
