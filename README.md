@@ -39,31 +39,39 @@ BREATHEEASY/
 ├── data/
 │   └── Post-Processing/
 │       └── CSV_Files/
-│           └── Master_AQI_Dataset.csv  # Main historical dataset
-├── models/                             # Saved Prophet models (*_prophet_model_v2.json)
-├── notebook/                           # Jupyter notebooks for exploration/development
-│   └── 2_AQI_Forecasting_Development.ipynb
-├── src/                                # Main backend source code
+│           └── Master_AQI_Dataset.csv         # Main historical dataset
+├── data_processing_code/
+│   └── Catogorical_Encoding.py                # Code used to Encode the City Name's using One Hot Encoding
+├── models/                                    # Saved Prophet models
+│   ├── Bangalore_prophet_model_v2.json
+│   ├── Chennai_prophet_model_v2.json
+│   ├── Delhi_prophet_model_v2.json
+│   ├── Hyderabad_prophet_model_v2.json
+│   └── Mumbai_prophet_model_v2.json
+├── notebook/                                  # Jupyter notebooks for exploration/development
+│   ├── 1_Historical_Analysis.ipynb            # Notebook for Sec 1 analysis
+│   └── 2_AQI_Forecasting_Development.ipynb    # Notebook for Sec 4 development
+├── src/                                       # Main backend source code
 │   ├── __init__.py
-│   ├── analysis/
+│   ├── analysis/                              # Historical data analysis functions
 │   │   ├── __init__.py
 │   │   └── historical.py
-│   ├── api_integration/
+│   ├── api_integration/                       # External API clients
 │   │   ├── __init__.py
-│   │   ├── client.py                   # AQICN API client
-│   │   └── weather_client.py          # WeatherAPI.com client
-│   ├── health_rules/
+│   │   ├── client.py                          # AQICN API client
+│   │   └── weather_client.py                  # WeatherAPI.com client
+│   ├── health_rules/                          # AQI scales, thresholds, interpretation logic
 │   │   ├── __init__.py
-│   │   ├── info.py                    # AQI scale definitions (CPCB)
-│   │   └── interpreter.py            # Pollutant risk interpretation (Sec 5)
-│   └── modeling/
+│   │   ├── info.py                            # AQI scale definitions (CPCB)
+│   │   └── interpreter.py                     # Pollutant risk interpretation (Sec 5)
+│   └── modeling/                              # ML model training and prediction
 │       ├── __init__.py
-│       ├── predictor.py              # Loads models, generates forecasts (Sec 4 & 6)
-│       └── train.py                  # Trains and saves models for all cities
-├── .env                               # Environment variables (API keys) - MUST BE CREATED MANUALLY
-├── .gitignore                         # Files/directories ignored by Git
-├── requirements.txt                   # Python dependencies
-└── README.md                          # This file
+│       ├── predictor.py                       # Loads models, generates forecasts (Sec 4 & 6)
+│       └── train.py                           # Trains and saves models for all cities
+├── .env                                       # Environment variables (API keys) - MANUALLY CREATED
+├── .gitignore                                 # Files/directories ignored by Git
+├── requirements.txt                           # Python dependencies
+└── README.md                                  # This file
 ```
 
 ## Setup Instructions
