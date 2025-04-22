@@ -78,7 +78,7 @@ BREATHEEASY/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/cp099/BreatheEasy.git # Replace with your actual repo URL if different
+git clone https://github.com/cp099/BreatheEasy.git
 cd BreatheEasy
 ```
 
@@ -119,9 +119,9 @@ Create a `.env` file in the root directory and add:
 AQICN_API_TOKEN=YOUR_ACTUAL_AQICN_TOKEN_HERE
 WEATHERAPI_API_KEY=YOUR_ACTUAL_WEATHERAPI_KEY_HERE
 ```
-> Ensure `.env` is included in `.gitignore` (already done).
+> Ensure `.env` is included in `.gitignore`.
 
-### 6. Train Forecast Models (Optional if already committed)
+### 6. Train Forecast Models (Optional as already committed)
 ```bash
 python src/modeling/train.py
 ```
@@ -162,14 +162,3 @@ Contributions are welcome! Fork the repo, create a branch, commit your changes, 
 This project is licensed under the MIT License.
 
 ---
-
-**Key Updates Made:**
-
-- Refined Overview and Feature descriptions.
-- Added a Technology Stack section.
-- Updated the Project Structure.
-- Clarified and detailed setup steps.
-- Emphasized API key setup and data placement.
-- Explained optional model retraining.
-- Added backend module test instructions.
-- Suggested integration path with web frameworks.
