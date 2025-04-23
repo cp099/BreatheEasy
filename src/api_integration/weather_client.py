@@ -8,154 +8,146 @@ from datetime import datetime
 import sys
 
 # --- Setup Project Root Path ---
-# (Keep the path setup logic as it was)
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 except NameError:
-    PROJECT_ROOT = os.path.abspath('.')
+    PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname('.'), '..'))
+    if not os.path.exists(os.path.join(PROJECT_ROOT, 'src')):
+         PROJECT_ROOT = os.path.abspath('.')
+    logging.warning(f"Weather Client: __file__ not defined. Assuming project root: {PROJECT_ROOT}")
 if PROJECT_ROOT not in sys.path:
      sys.path.insert(0, PROJECT_ROOT)
      logging.info(f"Weather Client: Added project root to sys.path: {PROJECT_ROOT}")
 
-# --- Configuration ---
+# --- Import Configuration ---
+try:
+    from src.config_loader import CONFIG
+    log_level_str = CONFIG.get('logging', {}).get('level', 'INFO')
+    log_format = CONFIG.get('logging', {}).get('format', '%(asctime)s - [%(levelname)s] - %(message)s')
+    log_level = getattr(logging, log_level_str.upper(), logging.INFO)
+    logging.info("Weather Client: Successfully imported config.")
+except ImportError as e:
+    logging.error(f"Weather Client: Could not import CONFIG. Error: {e}", exc_info=True)
+    CONFIG = {}
+    log_level = logging.INFO
+    log_format = '%(asctime)s - [%(levelname)s] - %(message)s'
+
+# --- Setup Logging ---
+logging.basicConfig(level=log_level, format=log_format, force=True)
+log = logging.getLogger(__name__)
+
+# --- Load API Key ---
 # Load environment variables from .env file
 try:
     dotenv_path = os.path.join(PROJECT_ROOT, '.env')
-    load_dotenv(dotenv_path=dotenv_path)
-    logging.info(f"Weather Client: Attempted to load .env file from: {dotenv_path}")
+    loaded = load_dotenv(dotenv_path=dotenv_path)
+    if loaded:
+         log.info(f"Weather Client: Loaded .env file from: {dotenv_path}")
+    else:
+         log.warning(f"Weather Client: .env file not found or empty at: {dotenv_path}")
 except Exception as e:
-    logging.error(f"Weather Client: Error finding or loading .env file: {e}", exc_info=True)
+    log.error(f"Weather Client: Error loading .env file: {e}", exc_info=True)
 
-# Get WeatherAPI key from environment variable
 WEATHERAPI_KEY = os.getenv('WEATHERAPI_API_KEY')
-WEATHERAPI_BASE_URL = "http://api.weatherapi.com/v1/current.json" # Current weather endpoint
-
-# Setup logger for this module
-log = logging.getLogger(__name__)
 
 # --- API Client Function using WeatherAPI.com ---
-
 def get_current_weather(city_name):
     """
-    Fetches current weather data for a specific city using the WeatherAPI.com service.
-
-    Args:
-        city_name (str): The name of the city (e.g., 'Delhi', 'London').
-
-    Returns:
-        dict: A dictionary containing key weather information suitable for UI,
-              e.g., {'temp_c': 25.0, 'feelslike_c': 26.0, 'humidity': 60,
-                     'condition_text': 'Partly cloudy', 'condition_icon': '//cdn.weatherapi.com/...png',
-                     'wind_kph': 10.0, 'city': 'Delhi', 'country': 'India',
-                     'last_updated': '2023-10-27 16:00'}
-              Returns None if the API key is missing, the request fails, city not found, or response is invalid.
+    Fetches current weather data for a city using WeatherAPI.com service and config URL.
     """
+    # Get Base URL from config, with a fallback default
+    weatherapi_base_url = CONFIG.get('apis', {}).get('weatherapi', {}).get('base_url', "http://api.weatherapi.com/v1/current.json")
+
     if not WEATHERAPI_KEY:
         log.error("WEATHERAPI_API_KEY not found in environment variables. Check .env file.")
         return None
+    if not weatherapi_base_url:
+         log.error("WeatherAPI base URL not found in configuration.")
+         return None
 
-    # Define request parameters
-    params = {
-        'key': WEATHERAPI_KEY,
-        'q': city_name,
-        'aqi': 'no' # Don't need AQI data from this API call
-    }
-
-    log.info(f"Requesting current weather data from WeatherAPI.com for: {city_name}")
+    params = {'key': WEATHERAPI_KEY, 'q': city_name, 'aqi': 'no'}
+    log.info(f"Requesting weather from WeatherAPI for: {city_name} using URL: {weatherapi_base_url}")
 
     try:
-        response = requests.get(WEATHERAPI_BASE_URL, params=params, timeout=10)
-        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-
+        response = requests.get(weatherapi_base_url, params=params, timeout=10)
+        response.raise_for_status()
         data = response.json()
         log.debug(f"Raw WeatherAPI response JSON: {data}")
 
-        # Check for API-specific errors (WeatherAPI doesn't always use HTTP status for app errors)
         if "error" in data:
             error_info = data["error"]
-            log.error(f"WeatherAPI returned an error for city '{city_name}': {error_info.get('message')} (Code: {error_info.get('code')})")
-            # Common code 1006: No location found matching parameter 'q'
-            if error_info.get('code') == 1006:
-                 log.warning(f"City '{city_name}' not found by WeatherAPI.")
+            log.error(f"WeatherAPI error for '{city_name}': {error_info.get('message')} (Code: {error_info.get('code')})")
+            if error_info.get('code') == 1006: log.warning(f"City '{city_name}' not found by WeatherAPI.")
             return None
 
-        # --- Extract Data (Structure based on WeatherAPI.com current.json response) ---
+        # --- Extract Data ---
         current_data = data.get("current", {})
         location_data = data.get("location", {})
         condition_data = current_data.get("condition", {})
+        timestamp_unix = location_data.get("localtime_epoch") # Use location epoch for UTC conversion if needed
+        timestamp_local_str = location_data.get("localtime") # Or use the local time string directly
 
-        # Extract relevant information into a cleaner dictionary
         weather_info = {
             "temp_c": current_data.get("temp_c"),
             "feelslike_c": current_data.get("feelslike_c"),
-            "humidity": current_data.get("humidity"), # Percentage
+            "humidity": current_data.get("humidity"),
             "pressure_mb": current_data.get("pressure_mb"),
             "condition_text": condition_data.get("text"),
-            "condition_icon": condition_data.get("icon"), # URL path (add https: if needed)
+            "condition_icon": condition_data.get("icon"), # URL path
             "wind_kph": current_data.get("wind_kph"),
             "wind_dir": current_data.get("wind_dir"),
             "uv_index": current_data.get("uv"),
             "city": location_data.get("name"),
             "region": location_data.get("region"),
             "country": location_data.get("country"),
-            "last_updated": current_data.get("last_updated"), # Local time string
-            "localtime": location_data.get("localtime") # Local time string
+            "last_updated": current_data.get("last_updated"),
+            "localtime": timestamp_local_str # Provide local time string
         }
         log.info(f"Processed weather info for {city_name}: Temp={weather_info['temp_c']}C, Condition={weather_info['condition_text']}")
-        # Filter out None values if desired
-        # weather_info = {k: v for k, v in weather_info.items() if v is not None}
         return weather_info
 
+    # (Keep existing except blocks for Timeout, HTTPError, RequestException, ValueError, Exception)
     except requests.exceptions.Timeout:
-        log.error(f"Request to WeatherAPI timed out for city '{city_name}'.")
+        log.error(f"Request to WeatherAPI timed out for '{city_name}'.")
         return None
     except requests.exceptions.HTTPError as http_err:
-        log.error(f"HTTP error occurred calling WeatherAPI: {http_err} - Status Code: {http_err.response.status_code}")
-        # WeatherAPI uses error codes in JSON mostly, but handle HTTP errors too
-        if http_err.response.status_code == 401: # API key invalid/missing
-             log.error("Authorization Error (401): Check if WEATHERAPI_API_KEY is correct and valid.")
-        elif http_err.response.status_code == 403: # Key blocked or over limit
-             log.error("Forbidden Error (403): Check API key status and usage limits.")
-        # Note: 400 might mean 'city not found' if JSON error handling fails
+        log.error(f"WeatherAPI HTTP error: {http_err} - Status: {http_err.response.status_code}")
+        if http_err.response.status_code == 401: log.error("Check WEATHERAPI_API_KEY.")
+        elif http_err.response.status_code == 403: log.error("Check WeatherAPI key status/limits.")
         return None
     except requests.exceptions.RequestException as req_err:
-        log.error(f"Network error during request to WeatherAPI: {req_err}")
+        log.error(f"WeatherAPI network error: {req_err}")
         return None
     except ValueError as json_err: # Includes json.JSONDecodeError
-        log.error(f"Error decoding JSON response from WeatherAPI: {json_err}")
+        log.error(f"WeatherAPI JSON decoding error: {json_err}")
         return None
     except Exception as e:
-        log.error(f"An unexpected error occurred in get_current_weather (WeatherAPI): {e}", exc_info=True)
+        log.error(f"Unexpected error in get_current_weather (WeatherAPI): {e}", exc_info=True)
         return None
 
-# --- Example Usage Block (for testing this module directly) ---
+# --- Example Usage Block (Should still work) ---
 if __name__ == "__main__":
-    # Configure logging for testing
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
+    # Configure logging for testing if not already done
+    if not logging.getLogger().hasHandlers():
+         logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
 
     print("\n" + "="*30)
     print(" Running weather_client.py Tests (using WeatherAPI.com) ")
     print("="*30 + "\n")
-
-    test_cities = ["Delhi, India", "London", "Atlantisxyz"] # Changed "Delhi" to "Delhi, India"
-
+    # (Keep the existing test block code exactly as it was)
+    test_cities = ["Delhi, India", "London", "Atlantisxyz"]
     for city in test_cities:
         print(f"--- Test: Fetching weather for '{city}' ---")
         weather_data = get_current_weather(city)
-
         if weather_data:
             print(f"Success! Received weather data for '{city}':")
             import pprint
-            pprint.pprint(weather_data) # Pretty print the dictionary
-        else:
-            print(f"Failure or city not found for '{city}'. Check logs for details.")
-        print("-" * 20) # Separator
-
-    # Test API key missing (Manual Simulation needed)
+            pprint.pprint(weather_data)
+        else: print(f"Failure or city not found for '{city}'. Check logs.")
+        print("-" * 20)
     print("\n--- Test: API Key Missing Check ---")
     print("(Requires manually removing/commenting WeatherAPI key in .env or code)")
-
     print("\n" + "="*30)
     print(" weather_client.py (WeatherAPI.com) Tests Finished ")
     print("="*30 + "\n")

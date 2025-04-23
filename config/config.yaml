@@ -1,0 +1,33 @@
+# File: config/config.yaml
+# Main configuration for the BreatheEasy project
+
+# File and Directory Paths (relative to project root)
+paths:
+  data_file: data/Post-Processing/CSV_Files/Master_AQI_Dataset.csv
+  models_dir: models/
+
+# API Configuration
+apis:
+  aqicn:
+    base_url: "https://api.waqi.info/feed"
+  weatherapi:
+    base_url: "http://api.weatherapi.com/v1/current.json"
+  # Add other API configs here if needed
+
+# Modeling Configuration
+modeling:
+  target_cities: # Cities to train models for and likely support in UI
+    - Delhi
+    - Mumbai
+    - Bangalore
+    - Chennai
+    - Hyderabad
+  prophet_model_version: "v2" # Version suffix for model filenames
+  forecast_days: 5 # Default number of days to forecast ahead
+
+# Logging Configuration (Example - can be refined later)
+logging:
+  level: INFO # e.g., DEBUG, INFO, WARNING, ERROR
+  format: '%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s'
+
+# Add other sections as needed

@@ -10,196 +10,193 @@ from prophet import Prophet
 from prophet.serialize import model_to_json
 
 # --- Setup Project Root Path ---
-# Add project root to sys.path to allow importing project modules
 try:
-    # Assumes this script is in src/modeling/
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
-    logging.info(f"Project root determined using __file__: {PROJECT_ROOT}")
 except NameError:
-    # Fallback if __file__ is not defined (e.g., different execution context)
-    # Assume the current working directory IS the project root BREATHEEASY/
-    PROJECT_ROOT = os.path.abspath('.')
-    logging.warning(f"__file__ not defined. Assuming current working directory is project root: {PROJECT_ROOT}")
+    PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname('.'), '..'))
+    if not os.path.exists(os.path.join(PROJECT_ROOT, 'src')):
+         PROJECT_ROOT = os.path.abspath('.')
+    logging.warning(f"Train Script: __file__ not defined. Assuming project root: {PROJECT_ROOT}")
 if PROJECT_ROOT not in sys.path:
      sys.path.insert(0, PROJECT_ROOT)
-     logging.info(f"Added project root to sys.path: {PROJECT_ROOT}")
+     logging.info(f"Train Script: Added project root to sys.path: {PROJECT_ROOT}")
 
-# Now import project modules if needed (none needed directly for training itself)
-# from src.some_module import some_function # Example
+# --- Import Configuration ---
+try:
+    from src.config_loader import CONFIG
+    # Set up logging based on config *before* logging anything important
+    log_level_str = CONFIG.get('logging', {}).get('level', 'INFO')
+    log_format = CONFIG.get('logging', {}).get('format', '%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
+    log_level = getattr(logging, log_level_str.upper(), logging.INFO)
+    logging.basicConfig(level=log_level, format=log_format, force=True) # force=True might be needed
+    log = logging.getLogger(__name__)
+    log.info("Train Script: Successfully imported config and configured logging.")
+except ImportError as e:
+    # Basic logging if config fails
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
+    log = logging.getLogger(__name__)
+    log.error(f"Train Script: Could not import CONFIG. Using defaults. Error: {e}", exc_info=True)
+    CONFIG = {} # Define as empty dict
+except Exception as e:
+     logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
+     log = logging.getLogger(__name__)
+     log.error(f"Train Script: Error setting up config/logging: {e}")
+     CONFIG = {}
 
-# --- Logging Configuration ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
 
-# --- Configuration ---
-DATA_FILENAME = 'Master_AQI_Dataset.csv'
-DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'Post-Processing', 'CSV_Files', DATA_FILENAME)
-MODELS_DIR = os.path.join(PROJECT_ROOT, 'models')
-TARGET_CITIES = ['Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Hyderabad']
-MODEL_VERSION = "v2" # Version indicator for saved models
+# --- Configuration Values ---
+# Get paths and parameters from config, providing defaults
+relative_data_path = CONFIG.get('paths', {}).get('data_file', 'data/Post-Processing/CSV_Files/Master_AQI_Dataset.csv')
+relative_models_dir = CONFIG.get('paths', {}).get('models_dir', 'models')
+TARGET_CITIES = CONFIG.get('modeling', {}).get('target_cities', ['Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Hyderabad']) # Default list
+MODEL_VERSION = CONFIG.get('modeling', {}).get('prophet_model_version', 'v2') # Default version
 
-# --- Helper Functions ---
+# Construct absolute paths
+DATA_PATH = os.path.join(PROJECT_ROOT, relative_data_path)
+MODELS_DIR = os.path.join(PROJECT_ROOT, relative_models_dir)
 
-def load_data(data_path):
+
+# --- Helper Functions (Keep as they were, they now use global DATA_PATH/MODELS_DIR/MODEL_VERSION) ---
+
+def load_data(data_path=DATA_PATH): # Default to configured path
     """Loads the master dataset and parses dates."""
-    logging.info(f"Loading data from: {data_path}")
+    log.info(f"Loading data from: {data_path}")
     if not os.path.exists(data_path):
-        logging.error(f"Data file not found: {data_path}")
+        log.error(f"Data file not found: {data_path}")
         return None
     try:
         df = pd.read_csv(data_path)
-        # Explicit Date Parsing using correct format
         date_format = '%d/%m/%y'
-        logging.info(f"Attempting to parse 'Date' column with format: {date_format}")
+        log.info(f"Attempting to parse 'Date' column with format: {date_format}")
         df['Date'] = pd.to_datetime(df['Date'], format=date_format)
-        logging.info(f"Data loaded successfully. Shape: {df.shape}")
+        log.info(f"Data loaded successfully. Shape: {df.shape}")
         return df
     except ValueError as ve:
-        logging.error(f"Error parsing 'Date' column with format '{date_format}'. Check CSV. Error: {ve}")
+        log.error(f"Error parsing 'Date' column with format '{date_format}'. Check CSV. Error: {ve}")
         return None
     except Exception as e:
-        logging.error(f"Failed during data loading: {e}", exc_info=True)
+        log.error(f"Failed during data loading: {e}", exc_info=True)
         return None
 
 def reconstruct_city_column(df):
     """Adds a 'City' column based on one-hot encoded columns if it doesn't exist."""
+    if df is None: return None # Handle case where df failed to load
     if 'City' in df.columns:
-        logging.info("'City' column already exists.")
+        log.info("'City' column already exists.")
         return df
-
-    logging.info("Reconstructing 'City' column from City_... columns...")
+    log.info("Reconstructing 'City' column...")
     city_columns = [col for col in df.columns if col.startswith('City_')]
     if not city_columns:
-        logging.error("CRITICAL: No 'City_' columns found for reconstruction.")
-        return None # Cannot proceed without city info
-
+        log.error("CRITICAL: No 'City_' columns found.")
+        return None
     def get_city_name(row):
         for city_col in city_columns:
-            if row[city_col] > 0:
-                return city_col.replace('City_', '')
-        return 'Unknown' # Should not happen with proper one-hot encoding
-
+            if row[city_col] > 0: return city_col.replace('City_', '')
+        return 'Unknown'
     df['City'] = df.apply(get_city_name, axis=1)
-    logging.info("Finished reconstructing 'City' column.")
+    log.info("Finished reconstructing 'City' column.")
     return df
 
 def prepare_prophet_data(df_master, city_name):
     """Filters data for a city, prepares 'ds' and 'y' columns, handles NaNs."""
-    logging.info(f"Preparing data for city: {city_name}")
+    if df_master is None: return None
+    log.info(f"Preparing data for city: {city_name}")
     city_df = df_master[df_master['City'] == city_name].copy()
-
     if city_df.empty:
-        logging.error(f"No data found for city: {city_name}")
+        log.error(f"No data found for city: {city_name}")
         return None
-
     prophet_df = city_df[['Date', 'AQI']].rename(columns={'Date': 'ds', 'AQI': 'y'})
-    prophet_df['ds'] = pd.to_datetime(prophet_df['ds']) # Ensure datetime
-
-    # Handle missing values in 'y'
+    prophet_df['ds'] = pd.to_datetime(prophet_df['ds'])
     initial_nan_count = prophet_df['y'].isnull().sum()
     if initial_nan_count > 0:
-        logging.warning(f"Found {initial_nan_count} missing AQI values ('y') for {city_name}. Applying ffill then bfill.")
+        log.warning(f"Found {initial_nan_count} missing AQI ('y') for {city_name}. Applying ffill/bfill.")
         prophet_df['y'] = prophet_df['y'].ffill().bfill()
         if prophet_df['y'].isnull().any():
-            logging.error(f"Could not fill all missing AQI values for {city_name}. Check data source.")
-            return None # Cannot train with NaNs
-
+            log.error(f"Could not fill all missing AQI for {city_name}.")
+            return None
     prophet_df = prophet_df.sort_values(by='ds')
-    logging.info(f"Data prepared for {city_name}. Shape: {prophet_df.shape}")
+    log.info(f"Data prepared for {city_name}. Shape: {prophet_df.shape}")
     return prophet_df
 
 def train_prophet_model(city_data_df, city_name):
     """Instantiates, configures, and trains the improved Prophet model."""
-    logging.info(f"Instantiating Improved Prophet model for {city_name}...")
-    model = Prophet(
-        yearly_seasonality=True,
-        weekly_seasonality=True,
-        daily_seasonality=False,
-        seasonality_mode='multiplicative',
-        changepoint_prior_scale=0.1,
-        seasonality_prior_scale=10.0
-    )
+    if city_data_df is None: return None
+    log.info(f"Instantiating Improved Prophet model for {city_name}...")
+    # Using model parameters defined previously
+    model = Prophet(yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=False,
+                    seasonality_mode='multiplicative', changepoint_prior_scale=0.1, seasonality_prior_scale=10.0)
     try:
         model.add_country_holidays(country_name='IN')
-        logging.info(f"Added India holidays for {city_name}.")
+        log.info(f"Added India holidays for {city_name}.")
     except Exception as e:
-         logging.warning(f"Could not add country holidays for 'IN'. Error: {e}")
-
-    logging.info(f"Fitting model to data for {city_name} (using all historical data)...")
+         log.warning(f"Could not add country holidays for 'IN'. Error: {e}")
+    log.info(f"Fitting model to data for {city_name} (using all historical data)...")
     try:
-        # Train on ALL available historical data for the city for best future prediction
         model.fit(city_data_df)
-        logging.info(f"Model fitting complete for {city_name}.")
+        log.info(f"Model fitting complete for {city_name}.")
         return model
     except Exception as e:
-        logging.error(f"Error during model fitting for {city_name}: {e}", exc_info=True)
+        log.error(f"Error during model fitting for {city_name}: {e}", exc_info=True)
         return None
 
-def save_model(model, city_name, version, models_dir):
+def save_model(model, city_name, version=MODEL_VERSION, models_dir=MODELS_DIR): # Use configured defaults
     """Saves the trained Prophet model to a JSON file."""
-    os.makedirs(models_dir, exist_ok=True) # Ensure directory exists
+    if model is None: return False
+    os.makedirs(models_dir, exist_ok=True)
     model_filename = f"{city_name}_prophet_model_{version}.json"
     model_path = os.path.join(models_dir, model_filename)
-
-    logging.info(f"Saving model for {city_name} to JSON: {model_path}")
+    log.info(f"Saving model for {city_name} (v{version}) to JSON: {model_path}")
     try:
         with open(model_path, 'w') as fout:
             json.dump(model_to_json(model), fout)
-        logging.info(f"Model for {city_name} saved successfully.")
+        log.info(f"Model for {city_name} saved successfully.")
         return True
     except Exception as e:
-        logging.error(f"Error saving model for {city_name}: {e}", exc_info=True)
+        log.error(f"Error saving model for {city_name}: {e}", exc_info=True)
         return False
 
 # --- Main Execution ---
-
 def main():
-    """Loads data, loops through cities, trains, and saves models."""
-    logging.info("Starting model training process...")
+    """Loads data, loops through configured cities, trains, and saves models."""
+    log.info("Starting model training process using config...")
+    log.info(f"Target cities from config: {TARGET_CITIES}")
+    log.info(f"Model version from config: {MODEL_VERSION}")
 
-    df_master = load_data(DATA_PATH)
+    df_master = load_data() # Uses global DATA_PATH derived from config
     if df_master is None:
-        logging.critical("Failed to load master data. Exiting training.")
+        log.critical("Failed to load master data. Exiting training.")
         return
 
     df_master = reconstruct_city_column(df_master)
     if df_master is None:
-        logging.critical("Failed to reconstruct city column. Exiting training.")
+        log.critical("Failed to reconstruct city column. Exiting training.")
         return
 
     successful_cities = []
     failed_cities = []
 
-    for city in TARGET_CITIES:
-        logging.info(f"\n===== Processing City: {city} =====")
-
-        # 1. Prepare data for the current city
+    for city in TARGET_CITIES: # Use city list from config
+        log.info(f"\n===== Processing City: {city} =====")
         prophet_df = prepare_prophet_data(df_master, city)
         if prophet_df is None:
-            logging.error(f"Skipping city {city} due to data preparation error.")
+            log.error(f"Skipping city {city}: data preparation error.")
             failed_cities.append(city)
             continue
-
-        # 2. Train the model
         trained_model = train_prophet_model(prophet_df, city)
         if trained_model is None:
-            logging.error(f"Skipping city {city} due to model training error.")
+            log.error(f"Skipping city {city}: model training error.")
             failed_cities.append(city)
             continue
+        # Pass MODEL_VERSION and MODELS_DIR from config variables
+        save_success = save_model(trained_model, city) # Uses defaults which are now from config
+        if save_success: successful_cities.append(city)
+        else: failed_cities.append(city)
 
-        # 3. Save the model
-        save_success = save_model(trained_model, city, MODEL_VERSION, MODELS_DIR)
-        if save_success:
-            successful_cities.append(city)
-        else:
-            failed_cities.append(city)
-
-    logging.info("\n===== Model Training Summary =====")
-    logging.info(f"Successfully trained and saved models for: {successful_cities}")
-    if failed_cities:
-        logging.warning(f"Failed to train or save models for: {failed_cities}")
-    logging.info("Model training process finished.")
-
+    log.info("\n===== Model Training Summary =====")
+    log.info(f"Successfully trained and saved models for: {successful_cities}")
+    if failed_cities: log.warning(f"Failed to train or save models for: {failed_cities}")
+    log.info("Model training process finished.")
 
 if __name__ == "__main__":
-    main() # Execute the main function when script is run directly
+    main()
