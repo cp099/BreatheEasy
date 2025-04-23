@@ -5,6 +5,7 @@ import requests # For exception types
 import sys
 import os
 from unittest.mock import MagicMock
+from src.exceptions import APIKeyError, APITimeoutError, APINotFoundError, APIError # Add others if needed
 
 # --- Add project root to sys.path for imports ---
 try:
@@ -117,63 +118,86 @@ def test_get_current_weather_city_not_found(mocker):
 
 def test_get_current_weather_bad_api_key(mocker):
     """Tests handling of bad API key error from WeatherAPI JSON."""
+    # (Keep mock setup)
     mock_response = MagicMock()
-    mock_response.status_code = 200 # API might return 200 but with error in JSON
+    mock_response.status_code = 200
     mock_response.json.return_value = MOCK_ERROR_BAD_KEY
     mock_response.raise_for_status.return_value = None
     mocker.patch('requests.get', return_value=mock_response)
 
-    result = get_current_weather("Delhi")
+    # Expect APIKeyError (based on error code check)
+    with pytest.raises(APIKeyError) as excinfo:
+        get_current_weather("Delhi")
 
-    assert result is None # Should return None
+    assert "API key provided is invalid" in str(excinfo.value)
+    assert excinfo.value.service == "WeatherAPI"
 
 def test_get_current_weather_http_error_401(mocker):
     """Tests handling of HTTP 401 error (e.g., key truly invalid/missing)."""
+    # (Keep mock setup)
     mock_response = MagicMock()
     mock_response.status_code = 401
     mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(response=mock_response)
     mocker.patch('requests.get', return_value=mock_response)
 
-    result = get_current_weather("Delhi")
+    # Expect APIKeyError
+    with pytest.raises(APIKeyError) as excinfo:
+        get_current_weather("Delhi")
 
-    assert result is None # Should return None on 401
+    assert "Authorization failed (HTTP 401)" in str(excinfo.value)
+    assert excinfo.value.service == "WeatherAPI"
 
 def test_get_current_weather_http_error_400(mocker):
     """Tests handling of HTTP 400 error (sometimes used for bad query)."""
+    # (Keep mock setup)
     mock_response = MagicMock()
     mock_response.status_code = 400
     mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(response=mock_response)
     mocker.patch('requests.get', return_value=mock_response)
 
-    # Simulate the scenario seen in previous test run
-    result = get_current_weather("Atlantisxyz")
+    # Expect APIError
+    with pytest.raises(APIError) as excinfo:
+        get_current_weather("Atlantisxyz")
 
-    assert result is None # Should return None on 400
+    assert "HTTP error 400" in str(excinfo.value)
+    assert excinfo.value.status_code == 400
+    assert excinfo.value.service == "WeatherAPI"
 
 def test_get_current_weather_network_error(mocker):
     """Tests handling of network connection errors."""
+    # (Keep mock setup)
     mocker.patch('requests.get', side_effect=requests.exceptions.ConnectionError("Network unavailable"))
 
-    result = get_current_weather("Delhi")
+    # Expect APIError (as network errors are wrapped)
+    with pytest.raises(APIError) as excinfo:
+        get_current_weather("Delhi")
 
-    assert result is None # Should return None
+    assert "network error: Network unavailable" in str(excinfo.value)
+    assert excinfo.value.service == "WeatherAPI"
 
 def test_get_current_weather_timeout(mocker):
     """Tests handling of request timeout."""
+    # (Keep mock setup)
     mocker.patch('requests.get', side_effect=requests.exceptions.Timeout("Request timed out"))
 
-    result = get_current_weather("Delhi")
+    # Expect APITimeoutError
+    with pytest.raises(APITimeoutError) as excinfo:
+        get_current_weather("Delhi")
 
-    assert result is None # Should return None
+    assert "timed out for 'Delhi'" in str(excinfo.value)
+    assert excinfo.value.service == "WeatherAPI"
 
 def test_get_current_weather_invalid_json(mocker):
     """Tests handling of invalid JSON response."""
+    # (Keep mock setup)
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.side_effect = ValueError("Invalid JSON received")
+    mock_response.json.side_effect = ValueError("Invalid JSON received") # Simulate JSON error
     mock_response.raise_for_status.return_value = None
     mocker.patch('requests.get', return_value=mock_response)
 
-    result = get_current_weather("Delhi")
+    # Expect ValueError (as raised by the function)
+    with pytest.raises(ValueError) as excinfo:
+        get_current_weather("Delhi")
 
-    assert result is None # Should return None if JSON parsing fails
+    assert "JSON decoding error" in str(excinfo.value)

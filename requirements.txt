@@ -19,7 +19,7 @@ prophet
 requests
 Flask
 Streamlit
-Dash
+Dash 
 
 # For loading environment variables from .env file
 python-dotenv
