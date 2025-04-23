@@ -27,7 +27,11 @@ modeling:
 
 # Logging Configuration (Example - can be refined later)
 logging:
-  level: INFO # e.g., DEBUG, INFO, WARNING, ERROR
-  format: '%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s'
+  level: INFO # Overall level for handlers (DEBUG, INFO, WARNING, ERROR)
+  format: '%(asctime)s - [%(levelname)s] - %(name)s - %(filename)s:%(lineno)d - %(message)s' # Added logger name '%(name)s'
+  log_to_file: true # Set to true to enable file logging
+  log_filename: app.log # Name of the log file (will appear in project root)
+  log_file_level: DEBUG # Log DEBUG and above to file, INFO and above to console (example)
+  log_console_level: INFO # Log INFO and above to console
 
 # Add other sections as needed

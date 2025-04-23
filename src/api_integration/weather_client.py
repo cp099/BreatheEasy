@@ -2,12 +2,13 @@
 
 import requests
 import os
-import logging
+import logging # Standard logging import
 from dotenv import load_dotenv
 from datetime import datetime
 import sys
 
 # --- Setup Project Root Path ---
+# (Keep existing PROJECT_ROOT logic)
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
@@ -21,24 +22,26 @@ if PROJECT_ROOT not in sys.path:
      logging.info(f"Weather Client: Added project root to sys.path: {PROJECT_ROOT}")
 
 # --- Import Configuration ---
+# This import will also trigger the centralized logging setup in config_loader
 try:
     from src.config_loader import CONFIG
-    log_level_str = CONFIG.get('logging', {}).get('level', 'INFO')
-    log_format = CONFIG.get('logging', {}).get('format', '%(asctime)s - [%(levelname)s] - %(message)s')
-    log_level = getattr(logging, log_level_str.upper(), logging.INFO)
     logging.info("Weather Client: Successfully imported config.")
 except ImportError as e:
+    # Temporary basic config if imports fail
+    logging.basicConfig(level=logging.WARNING)
     logging.error(f"Weather Client: Could not import CONFIG. Error: {e}", exc_info=True)
     CONFIG = {}
-    log_level = logging.INFO
-    log_format = '%(asctime)s - [%(levelname)s] - %(message)s'
+except Exception as e:
+     logging.basicConfig(level=logging.WARNING)
+     logging.error(f"Weather Client: Error importing config: {e}", exc_info=True)
+     CONFIG = {}
 
-# --- Setup Logging ---
-logging.basicConfig(level=log_level, format=log_format, force=True)
+# --- Get Logger ---
+# Get the logger instance for this module
 log = logging.getLogger(__name__)
 
 # --- Load API Key ---
-# Load environment variables from .env file
+# (Keep existing dotenv loading logic)
 try:
     dotenv_path = os.path.join(PROJECT_ROOT, '.env')
     loaded = load_dotenv(dotenv_path=dotenv_path)
@@ -81,12 +84,11 @@ def get_current_weather(city_name):
             if error_info.get('code') == 1006: log.warning(f"City '{city_name}' not found by WeatherAPI.")
             return None
 
-        # --- Extract Data ---
+        # Extract Data
         current_data = data.get("current", {})
         location_data = data.get("location", {})
         condition_data = current_data.get("condition", {})
-        timestamp_unix = location_data.get("localtime_epoch") # Use location epoch for UTC conversion if needed
-        timestamp_local_str = location_data.get("localtime") # Or use the local time string directly
+        timestamp_local_str = location_data.get("localtime")
 
         weather_info = {
             "temp_c": current_data.get("temp_c"),
@@ -94,7 +96,7 @@ def get_current_weather(city_name):
             "humidity": current_data.get("humidity"),
             "pressure_mb": current_data.get("pressure_mb"),
             "condition_text": condition_data.get("text"),
-            "condition_icon": condition_data.get("icon"), # URL path
+            "condition_icon": condition_data.get("icon"),
             "wind_kph": current_data.get("wind_kph"),
             "wind_dir": current_data.get("wind_dir"),
             "uv_index": current_data.get("uv"),
@@ -102,12 +104,12 @@ def get_current_weather(city_name):
             "region": location_data.get("region"),
             "country": location_data.get("country"),
             "last_updated": current_data.get("last_updated"),
-            "localtime": timestamp_local_str # Provide local time string
+            "localtime": timestamp_local_str
         }
         log.info(f"Processed weather info for {city_name}: Temp={weather_info['temp_c']}C, Condition={weather_info['condition_text']}")
         return weather_info
 
-    # (Keep existing except blocks for Timeout, HTTPError, RequestException, ValueError, Exception)
+    # (Keep existing except blocks)
     except requests.exceptions.Timeout:
         log.error(f"Request to WeatherAPI timed out for '{city_name}'.")
         return None
@@ -119,19 +121,16 @@ def get_current_weather(city_name):
     except requests.exceptions.RequestException as req_err:
         log.error(f"WeatherAPI network error: {req_err}")
         return None
-    except ValueError as json_err: # Includes json.JSONDecodeError
+    except ValueError as json_err:
         log.error(f"WeatherAPI JSON decoding error: {json_err}")
         return None
     except Exception as e:
         log.error(f"Unexpected error in get_current_weather (WeatherAPI): {e}", exc_info=True)
         return None
 
-# --- Example Usage Block (Should still work) ---
+# --- Example Usage Block (No changes needed here) ---
 if __name__ == "__main__":
-    # Configure logging for testing if not already done
-    if not logging.getLogger().hasHandlers():
-         logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
-
+    # Logging configured by importing CONFIG above
     print("\n" + "="*30)
     print(" Running weather_client.py Tests (using WeatherAPI.com) ")
     print("="*30 + "\n")

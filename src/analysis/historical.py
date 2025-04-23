@@ -2,70 +2,55 @@
 
 import pandas as pd
 import os
-import logging
+import logging # Standard library logging
 import sys # For path manipulation
 
 # --- Setup Project Root Path ---
-# Assuming this file is in src/analysis/, project root is two levels up
+# (Keep existing PROJECT_ROOT logic)
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 except NameError:
-    # Fallback if __file__ is not defined
-    PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname('.'), '..')) # Assumes running from src/
-    # Adjust fallback if running context is different (e.g., from project root directly)
+    PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname('.'), '..'))
     if not os.path.exists(os.path.join(PROJECT_ROOT, 'src')):
-         PROJECT_ROOT = os.path.abspath('.') # Assume running from project root
+         PROJECT_ROOT = os.path.abspath('.')
     logging.warning(f"Historical: __file__ not defined. Assuming project root: {PROJECT_ROOT}")
-# Ensure src is importable if needed by other modules called from here (although not directly needed now)
+# Ensure src modules can be imported if needed by dependencies further down
 # if PROJECT_ROOT not in sys.path:
 #      sys.path.insert(0, PROJECT_ROOT)
 
 # --- Import Configuration ---
-# Must happen after PROJECT_ROOT potentially added to path if config_loader is in src
+# This will also trigger the centralized logging setup in config_loader
 try:
     from src.config_loader import CONFIG
-    log_level_str = CONFIG.get('logging', {}).get('level', 'INFO') # Default INFO
-    log_format = CONFIG.get('logging', {}).get('format', '%(asctime)s - [%(levelname)s] - %(message)s')
-    log_level = getattr(logging, log_level_str.upper(), logging.INFO)
-except ImportError:
-    logging.error("Could not import CONFIG from src.config_loader. Using defaults.")
-    CONFIG = {} # Define CONFIG as empty dict to prevent errors later
-    log_level = logging.INFO
-    log_format = '%(asctime)s - [%(levelname)s] - %(message)s'
+    logging.info("Historical: Successfully imported config.")
+except ImportError as e:
+    # Log using basicConfig temporarily if config loader failed
+    logging.basicConfig(level=logging.WARNING)
+    logging.error("Historical: Could not import CONFIG from src.config_loader. Using defaults.", exc_info=True)
+    CONFIG = {}
 except Exception as e:
-     logging.error(f"Error setting up config/logging in historical.py: {e}")
+     logging.basicConfig(level=logging.WARNING)
+     logging.error(f"Historical: Error importing config: {e}", exc_info=True)
      CONFIG = {}
-     log_level = logging.INFO
-     log_format = '%(asctime)s - [%(levelname)s] - %(message)s'
 
-
-# --- Setup Logging ---
-# Configure logging using values from config file
-logging.basicConfig(level=log_level, format=log_format)
-log = logging.getLogger(__name__) # Get logger for this module
+# --- Get Logger ---
+# Get the logger for this specific module. It will use the central config.
+log = logging.getLogger(__name__)
 
 # --- Configuration Values Used ---
 # Construct absolute data path from project root and relative path in config
-relative_data_path = CONFIG.get('paths', {}).get('data_file', 'data/Post-Processing/CSV_Files/Master_AQI_Dataset.csv') # Provide default
+relative_data_path = CONFIG.get('paths', {}).get('data_file', 'data/Post-Processing/CSV_Files/Master_AQI_Dataset.csv')
 DATA_PATH = os.path.join(PROJECT_ROOT, relative_data_path)
-
+log.debug(f"Historical Data Path set to: {DATA_PATH}")
 
 # --- Data Caching ---
 _df_master_cached = None
 
 # --- Core Data Loading and Preprocessing Function ---
-
 def load_and_preprocess_data(force_reload=False):
     """
     Loads the Master AQI dataset using path from config, preprocesses, and caches.
-    (Core logic remains the same, only DATA_PATH source changed)
-
-    Args:
-        force_reload (bool): Force reload, bypass cache.
-
-    Returns:
-        pandas.DataFrame: Preprocessed DataFrame or None.
     """
     global _df_master_cached
     if _df_master_cached is not None and not force_reload:
@@ -78,14 +63,11 @@ def load_and_preprocess_data(force_reload=False):
         return None
 
     try:
-        # Define date format based on previous findings
         date_format = '%d/%m/%y'
-        df = pd.read_csv(DATA_PATH) # Load first
+        df = pd.read_csv(DATA_PATH)
         log.info(f"Raw historical data loaded successfully. Shape: {df.shape}")
-        # Parse dates explicitly
         log.info(f"Parsing 'Date' column with format: {date_format}")
         df['Date'] = pd.to_datetime(df['Date'], format=date_format)
-
     except ValueError as ve:
          log.error(f"Error parsing 'Date' column with format '{date_format}'. Check CSV. Error: {ve}")
          return None
@@ -96,13 +78,12 @@ def load_and_preprocess_data(force_reload=False):
         log.error(f"Failed to load data from CSV: {e}", exc_info=True)
         return None
 
-    # --- Data Preprocessing ---
     try:
-        # 1. Reconstruct 'City' Column (if needed)
+        # Reconstruct 'City' Column if needed
         if 'City' not in df.columns:
              city_columns = [col for col in df.columns if col.startswith('City_')]
              if not city_columns:
-                 log.error("CRITICAL: No columns starting with 'City_' found. Cannot determine city info.")
+                 log.error("CRITICAL: No 'City_' columns found.")
                  return None
              log.info(f"Reconstructing 'City' column from: {city_columns}")
              def get_city_name(row):
@@ -116,7 +97,7 @@ def load_and_preprocess_data(force_reload=False):
         else:
              log.info("'City' column already present.")
 
-        # 2. Set 'Date' as Index and Sort
+        # Set 'Date' as Index and Sort
         if 'Date' in df.columns:
              if df.index.name != 'Date': df.set_index('Date', inplace=True)
              df.sort_index(inplace=True)
@@ -125,24 +106,22 @@ def load_and_preprocess_data(force_reload=False):
             log.error("CRITICAL: 'Date' column missing after loading/parsing.")
             return None
 
-        # 3. Verify essential columns
+        # Verify essential columns
         required_cols = ['AQI', 'City']
         missing_req_cols = [col for col in required_cols if col not in df.columns]
         if missing_req_cols:
              log.error(f"CRITICAL: Essential columns missing: {missing_req_cols}")
              return None
-
     except Exception as e:
         log.error(f"Error during data preprocessing: {e}", exc_info=True)
         return None
 
-    # --- Cache and Return ---
     _df_master_cached = df
     log.info(f"Historical DataFrame processed and cached. Final shape: {_df_master_cached.shape}")
     return _df_master_cached
 
-# --- Data Access Functions (No changes needed inside these, they use the loaded df) ---
-
+# --- Data Access Functions (No changes needed inside these) ---
+# (Keep get_available_cities, get_city_aqi_trend_data, get_city_aqi_distribution_data functions exactly as they were)
 def get_available_cities():
     """Returns a sorted list of unique valid city names from the dataset."""
     df = load_and_preprocess_data()
@@ -181,14 +160,13 @@ def get_city_aqi_distribution_data(city_name):
     log.info(f"Returning AQI distribution data Series for '{city_name}'. Length: {len(aqi_values)}")
     return aqi_values
 
-
-# --- Example Usage Block (Should still work) ---
+# --- Example Usage Block (No changes needed here) ---
 if __name__ == "__main__":
+    # Logging will be configured when CONFIG is imported above
     print("\n" + "="*30)
     print(" Running historical.py Tests ")
     print("="*30 + "\n")
     # (Keep the existing test block code exactly as it was)
-    # ... It will now use the config-driven data path indirectly ...
     # --- Test 1: Load data and get available cities ---
     print("[Test 1: Get Available Cities]")
     available_cities = get_available_cities()

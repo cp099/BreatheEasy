@@ -3,12 +3,13 @@
 import pandas as pd
 import os
 import sys
-import logging
+import logging # Standard logging import
 import json
 from prophet import Prophet
 from prophet.serialize import model_from_json
 
 # --- Setup Project Root Path ---
+# (Keep existing PROJECT_ROOT logic)
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
@@ -22,54 +23,51 @@ if PROJECT_ROOT not in sys.path:
      logging.info(f"Predictor: Added project root to sys.path: {PROJECT_ROOT}")
 
 # --- Import Configuration and Other Modules ---
+# This import also sets up logging via config_loader.py
 try:
     from src.config_loader import CONFIG
-    # Set up logging based on config *before* logging anything important
-    log_level_str = CONFIG.get('logging', {}).get('level', 'INFO')
-    log_format = CONFIG.get('logging', {}).get('format', '%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
-    log_level = getattr(logging, log_level_str.upper(), logging.INFO)
-    logging.basicConfig(level=log_level, format=log_format, force=True) # force=True might be needed
-    log = logging.getLogger(__name__)
     # Import dependent functions *after* path setup and config load attempt
     from src.api_integration.client import get_current_aqi_for_city
     from src.health_rules.info import get_aqi_info
-    log.info("Predictor: Successfully imported config and dependent modules.")
+    logging.info("Predictor: Successfully imported config and dependent modules.")
 except ImportError as e:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
-    log = logging.getLogger(__name__)
-    log.error(f"Predictor: Could not import dependencies. Using defaults. Error: {e}", exc_info=True)
+    logging.error(f"Predictor: Could not import dependencies. Using defaults. Error: {e}", exc_info=True)
     CONFIG = {}
-    # Define dummy functions if imports failed, to prevent NameErrors later
-    def get_current_aqi_for_city(city_name): log.error("API client unavailable."); return None
-    def get_aqi_info(aqi_value): log.error("AQI info unavailable."); return None
+    def get_current_aqi_for_city(city_name): logging.error("API client unavailable."); return None
+    def get_aqi_info(aqi_value): logging.error("AQI info unavailable."); return None
 except Exception as e:
      logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
-     log = logging.getLogger(__name__)
-     log.error(f"Predictor: Error setting up config/logging: {e}")
+     logging.error(f"Predictor: Error importing dependencies: {e}")
      CONFIG = {}
-     def get_current_aqi_for_city(city_name): log.error("API client unavailable."); return None
-     def get_aqi_info(aqi_value): log.error("AQI info unavailable."); return None
+     def get_current_aqi_for_city(city_name): logging.error("API client unavailable."); return None
+     def get_aqi_info(aqi_value): logging.error("AQI info unavailable."); return None
 
+
+# --- Get Logger ---
+# Get the logger instance for this module
+log = logging.getLogger(__name__)
 
 # --- Configuration Values ---
-relative_models_dir = CONFIG.get('paths', {}).get('models_dir', 'models') # Default 'models'
+# Get paths and parameters from config, providing defaults
+relative_models_dir = CONFIG.get('paths', {}).get('models_dir', 'models')
 MODELS_DIR = os.path.join(PROJECT_ROOT, relative_models_dir)
-MODEL_VERSION = CONFIG.get('modeling', {}).get('prophet_model_version', 'v2') # Default 'v2'
-DEFAULT_FORECAST_DAYS = CONFIG.get('modeling', {}).get('forecast_days', 5) # Default 5 days
+MODEL_VERSION = CONFIG.get('modeling', {}).get('prophet_model_version', 'v2')
+DEFAULT_FORECAST_DAYS = CONFIG.get('modeling', {}).get('forecast_days', 5)
 
 # --- Model Loading Cache ---
 _loaded_models_cache = {}
 
-def load_prophet_model(city_name, version=MODEL_VERSION, models_dir=MODELS_DIR): # Use configured defaults
+def load_prophet_model(city_name, version=MODEL_VERSION, models_dir=MODELS_DIR): # Use module-level defaults from config
     """Loads a previously trained Prophet model, using cache."""
+    # (Keep function logic as is)
     global _loaded_models_cache
     model_key = f"{city_name}_{version}"
     if model_key in _loaded_models_cache:
         log.info(f"Returning cached model for {city_name} (v{version}).")
         return _loaded_models_cache[model_key]
-
-    model_filename = f"{city_name}_prophet_model_{version}.json" # Uses version from config
-    model_path = os.path.join(models_dir, model_filename) # Uses models_dir from config
+    model_filename = f"{city_name}_prophet_model_{version}.json"
+    model_path = os.path.join(models_dir, model_filename)
     log.info(f"Loading model for {city_name} (v{version}) from: {model_path}")
     if not os.path.exists(model_path):
         log.error(f"Model file not found: {model_path}")
@@ -84,12 +82,14 @@ def load_prophet_model(city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
         log.error(f"Error loading model for {city_name}: {e}", exc_info=True)
         return None
 
+
 # --- Prediction Function (Section 4 Core) ---
-# Uses global MODEL_VERSION, MODELS_DIR implicitly via load_prophet_model defaults
+# Uses module-level DEFAULT_FORECAST_DAYS
 def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_residual_correction=True, last_known_aqi=None):
     """Generates AQI forecast DataFrame for the next few days for a given city."""
+    # (Keep function logic as is, it uses load_prophet_model which uses config vars)
     log.info(f"Generating {days_ahead}-day forecast for {target_city}...")
-    trained_model = load_prophet_model(target_city) # Uses configured MODEL_VERSION/MODELS_DIR
+    trained_model = load_prophet_model(target_city)
     if trained_model is None:
         log.error(f"Failed to load model for {target_city}.")
         return None
@@ -157,7 +157,7 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
 # --- Helper Function for UI Formatting (Section 4 UI) ---
 def format_forecast_for_ui(forecast_df):
     """Formats forecast DataFrame into list of dicts for UI."""
-    # (No changes needed in the logic of this function)
+    # (Logic remains unchanged)
     if forecast_df is None or forecast_df.empty: return []
     ui_data = []
     for index, row in forecast_df.iterrows():
@@ -173,10 +173,10 @@ def format_forecast_for_ui(forecast_df):
     return ui_data
 
 # --- Function for Section 6 (Predicted Weekly Risks) ---
-# Uses global DEFAULT_FORECAST_DAYS implicitly via generate_forecast default
-def get_predicted_weekly_risks(city_name, days_ahead=DEFAULT_FORECAST_DAYS): # Use default from config
+# Uses module-level DEFAULT_FORECAST_DAYS
+def get_predicted_weekly_risks(city_name, days_ahead=DEFAULT_FORECAST_DAYS):
     """Generates forecast and interprets health implications for each predicted day."""
-    # (Logic remains same, but generate_forecast call uses config default days_ahead)
+    # (Logic remains unchanged)
     log.info(f"Getting predicted weekly risks (Section 6) for {city_name} for {days_ahead} days...")
     forecast_df = generate_forecast(target_city=city_name, days_ahead=days_ahead, apply_residual_correction=True)
     if forecast_df is None or forecast_df.empty:
@@ -210,47 +210,41 @@ def get_predicted_weekly_risks(city_name, days_ahead=DEFAULT_FORECAST_DAYS): # U
     log.info(f"Finished interpreting predicted weekly risks for {city_name}.")
     return predicted_risks_list
 
-# --- Example Usage Block (for testing this module directly) ---
+# --- Example Usage Block (No changes needed here) ---
 if __name__ == "__main__":
-    # Configure logging for testing if not already done by imports
-    if not logging.getLogger().hasHandlers():
-         logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
-
+    # Logging configured by importing CONFIG above
     print("\n" + "="*30)
     print(" Running predictor.py Tests ")
     print("="*30 + "\n")
 
     test_city = "Delhi"
-    days_to_forecast = DEFAULT_FORECAST_DAYS # Use default from config for testing
+    days_to_forecast = DEFAULT_FORECAST_DAYS # Use default from config
 
+    # (Keep existing tests 1 through 7 exactly as they were)
     # --- Test 1: Predict WITH API correction ---
     print(f"\n--- Test 1: Predicting {days_to_forecast} days for '{test_city}' WITH API Correction ---")
     forecast_api = generate_forecast(test_city, days_ahead=days_to_forecast, apply_residual_correction=True)
     if forecast_api is not None: print(forecast_api)
     else: print(f"Failed test 1 for {test_city}")
-
     # --- Test 2: Predict WITH manual correction ---
     simulated_aqi = 150.0
     print(f"\n--- Test 2: Predicting {days_to_forecast} days for '{test_city}' WITH Manual Correction (Last AQI={simulated_aqi}) ---")
     forecast_manual = generate_forecast(test_city, days_ahead=days_to_forecast, apply_residual_correction=True, last_known_aqi=simulated_aqi)
     if forecast_manual is not None: print(forecast_manual)
     else: print(f"Failed test 2 for {test_city}")
-
     # --- Test 3: Predict WITHOUT correction ---
     print(f"\n--- Test 3: Predicting {days_to_forecast} days for '{test_city}' WITHOUT Correction ---")
     forecast_raw = generate_forecast(test_city, days_ahead=days_to_forecast, apply_residual_correction=False)
     if forecast_raw is not None: print(forecast_raw)
     else: print(f"Failed test 3 for {test_city}")
-
     # --- Test 4: Format Forecast for UI ---
     print("\n--- Test 4: Formatting Forecast for UI ---")
-    if forecast_api is not None:
+    if forecast_api is not None: # Use result from test 1
         ui_formatted_data = format_forecast_for_ui(forecast_api)
         print(f"UI Formatted Data for {test_city} (API Corrected Forecast):")
         import pprint
         pprint.pprint(ui_formatted_data)
     else: print("Skipping test 4.")
-
     # --- Test 5: Get Predicted Weekly Risks (Section 6 logic) ---
     print("\n--- Test 5: Getting Predicted Weekly Risks (Section 6) ---")
     print(f"--- Getting predicted weekly risks for {test_city} ---")
@@ -259,12 +253,9 @@ if __name__ == "__main__":
         import pprint
         print("Predicted Weekly Risks/Implications:")
         pprint.pprint(weekly_risks)
-    else:
-        print(f"Could not generate predicted weekly risks for {test_city}.")
-
+    else: print(f"Could not generate predicted weekly risks for {test_city}.")
     # --- Test 6: Predict for another city (e.g., Mumbai) ---
     test_city_2 = "Mumbai"
-    # Check using configured paths and version
     model_exists = os.path.exists(os.path.join(MODELS_DIR, f"{test_city_2}_prophet_model_{MODEL_VERSION}.json"))
     if model_exists:
          print(f"\n--- Test 6: Predicting {days_to_forecast} days for '{test_city_2}' WITH API Correction ---")
@@ -274,7 +265,6 @@ if __name__ == "__main__":
              print(forecast_mumbai)
          else: print(f"Failed test 6 for {test_city_2}.")
     else: print(f"\nSkipping Test 6: Model file for {test_city_2} not found.")
-
     # --- Test 7: Predict for non-existent model ---
     print("\n--- Test 7: Predicting for 'Atlantis' (No Model) ---")
     forecast_none = generate_forecast("Atlantis", days_ahead=days_to_forecast)
