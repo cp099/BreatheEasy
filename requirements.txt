@@ -27,3 +27,6 @@ python-dotenv
 # Testing
 pytest
 pytest-mock
+
+# For YAML configuration files
+PyYAML
