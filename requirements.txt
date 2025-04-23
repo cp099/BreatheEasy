@@ -23,3 +23,7 @@ Dash
 
 # For loading environment variables from .env file
 python-dotenv
+
+# Testing
+pytest
+pytest-mock
