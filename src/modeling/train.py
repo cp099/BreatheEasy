@@ -1,5 +1,15 @@
 # File: src/modeling/train.py
 
+"""
+Handles the training and saving of Prophet forecasting models for target cities.
+
+This script loads the master historical AQI dataset, prepares the data for each
+configured target city, trains an improved Prophet model (with specific seasonality
+and prior settings), and saves the serialized model to the designated models directory.
+Configuration values (data path, models path, target cities, model version) are
+read from the central config file via config_loader.
+"""
+
 import pandas as pd
 import numpy as np
 import os
@@ -23,16 +33,16 @@ if PROJECT_ROOT not in sys.path:
      sys.path.insert(0, PROJECT_ROOT)
 
 # --- Import Configuration & Exceptions ---
-# This import also sets up logging via config_loader.py
+# (Keep existing import logic with fallbacks)
 try:
     from src.config_loader import CONFIG
-    from src.exceptions import DataFileNotFoundError # Import relevant custom exception
+    from src.exceptions import DataFileNotFoundError
     # Logging configured by config_loader
 except ImportError as e:
     logging.basicConfig(level=logging.WARNING)
     logging.error(f"Train Script: Could not import dependencies. Error: {e}", exc_info=True)
     CONFIG = {}
-    class DataFileNotFoundError(FileNotFoundError): pass # Dummy
+    class DataFileNotFoundError(FileNotFoundError): pass
 except Exception as e:
      logging.basicConfig(level=logging.WARNING)
      logging.error(f"Train Script: Error importing dependencies: {e}")
@@ -43,7 +53,7 @@ except Exception as e:
 log = logging.getLogger(__name__)
 
 # --- Configuration Values ---
-# (Keep logic for getting config values: relative_data_path, etc.)
+# (Keep logic for getting config values)
 relative_data_path = CONFIG.get('paths', {}).get('data_file', 'data/Post-Processing/CSV_Files/Master_AQI_Dataset.csv')
 relative_models_dir = CONFIG.get('paths', {}).get('models_dir', 'models')
 TARGET_CITIES = CONFIG.get('modeling', {}).get('target_cities', ['Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Hyderabad'])
@@ -54,7 +64,22 @@ MODELS_DIR = os.path.join(PROJECT_ROOT, relative_models_dir)
 # --- Helper Functions ---
 
 def load_data(data_path=DATA_PATH):
-    """Loads dataset, parses dates. Raises exceptions on failure."""
+    """Loads the master dataset and parses the 'Date' column.
+
+    Args:
+        data_path (str, optional): The absolute path to the dataset CSV file.
+                                   Defaults to DATA_PATH derived from config.
+
+    Returns:
+        pandas.DataFrame or None: Loaded DataFrame with 'Date' as datetime objects,
+                                  or None if loading/parsing fails.
+
+    Raises:
+        DataFileNotFoundError: If the file at data_path does not exist.
+        ValueError: If date parsing fails due to incorrect format in the file.
+        RuntimeError: For other unexpected file reading errors.
+    """
+    # (Function code remains the same)
     log.info(f"Loading data from: {data_path}")
     if not os.path.exists(data_path):
         msg = f"Data file not found: {data_path}"
@@ -69,18 +94,31 @@ def load_data(data_path=DATA_PATH):
         return df
     except ValueError as ve:
         log.error(f"Error parsing 'Date' column with format '{date_format}'. Check CSV. Error: {ve}")
-        raise # Re-raise ValueError
-    except FileNotFoundError: # Should be caught above, but belt-and-suspenders
+        raise
+    except FileNotFoundError:
         msg = f"Data file not found (exception): {data_path}"
         log.error(msg)
         raise DataFileNotFoundError(msg)
     except Exception as e:
         log.error(f"Failed during data loading: {e}", exc_info=True)
-        raise RuntimeError(f"Failed during data loading: {e}") from e # Wrap other errors
-
+        raise RuntimeError(f"Failed during data loading: {e}") from e
 
 def reconstruct_city_column(df):
-    """Adds 'City' column. Raises ValueError if one-hot cols missing."""
+    """Adds a 'City' column based on one-hot encoded columns if it doesn't exist.
+
+    Iterates through columns starting with 'City_' and assigns the corresponding
+    city name to a new 'City' column.
+
+    Args:
+        df (pd.DataFrame or None): The input DataFrame (potentially from load_data).
+
+    Returns:
+        pd.DataFrame: The DataFrame with the 'City' column added or confirmed.
+
+    Raises:
+        ValueError: If df is None or if no 'City_*' columns are found when needed.
+    """
+    # (Function code remains the same)
     if df is None:
          raise ValueError("Input DataFrame is None for city reconstruction.")
     if 'City' in df.columns:
@@ -101,7 +139,20 @@ def reconstruct_city_column(df):
     return df
 
 def prepare_prophet_data(df_master, city_name):
-    """Prepares data for Prophet. Raises ValueError on critical failure."""
+    """Filters data for a city, prepares 'ds'/'y' columns, handles NaNs.
+
+    Args:
+        df_master (pd.DataFrame or None): The master DataFrame containing data for all cities.
+        city_name (str): The specific city to prepare data for.
+
+    Returns:
+        pd.DataFrame: A DataFrame ready for Prophet (columns 'ds', 'y'), sorted by date.
+
+    Raises:
+        ValueError: If df_master is None, no data is found for the city, or
+                    missing AQI ('y') values cannot be filled.
+    """
+    # (Function code remains the same)
     if df_master is None:
         raise ValueError("Input DataFrame is None for Prophet preparation.")
     log.info(f"Preparing data for city: {city_name}")
@@ -109,7 +160,7 @@ def prepare_prophet_data(df_master, city_name):
     if city_df.empty:
         msg = f"No data found for city: {city_name}"
         log.error(msg)
-        raise ValueError(msg) # Raise error if no data for city
+        raise ValueError(msg)
     prophet_df = city_df[['Date', 'AQI']].rename(columns={'Date': 'ds', 'AQI': 'y'})
     prophet_df['ds'] = pd.to_datetime(prophet_df['ds'])
     initial_nan_count = prophet_df['y'].isnull().sum()
@@ -119,13 +170,29 @@ def prepare_prophet_data(df_master, city_name):
         if prophet_df['y'].isnull().any():
             msg = f"Could not fill all missing AQI for {city_name}."
             log.error(msg)
-            raise ValueError(msg) # Raise if NaNs persist
+            raise ValueError(msg)
     prophet_df = prophet_df.sort_values(by='ds')
     log.info(f"Data prepared for {city_name}. Shape: {prophet_df.shape}")
     return prophet_df
 
 def train_prophet_model(city_data_df, city_name):
-    """Trains Prophet model. Raises RuntimeError on fitting failure."""
+    """Instantiates, configures, and trains the improved Prophet model.
+
+    Uses specific parameters (multiplicative seasonality, adjusted priors)
+    and adds Indian holidays. Trains on the provided city-specific data.
+
+    Args:
+        city_data_df (pd.DataFrame or None): The prepared DataFrame ('ds', 'y') for the city.
+        city_name (str): The name of the city (for logging).
+
+    Returns:
+        Prophet: The fitted Prophet model instance.
+
+    Raises:
+        ValueError: If city_data_df is None.
+        RuntimeError: If the model fitting process fails.
+    """
+    # (Function code remains the same)
     if city_data_df is None:
          raise ValueError("Input city_data_df is None for training.")
     log.info(f"Instantiating Improved Prophet model for {city_name}...")
@@ -143,10 +210,30 @@ def train_prophet_model(city_data_df, city_name):
         return model
     except Exception as e:
         log.error(f"Error during model fitting for {city_name}: {e}", exc_info=True)
-        raise RuntimeError(f"Error fitting model for {city_name}: {e}") from e # Raise error
+        raise RuntimeError(f"Error fitting model for {city_name}: {e}") from e
 
 def save_model(model, city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
-    """Saves the model. Raises RuntimeError on failure."""
+    """Saves the trained Prophet model to a JSON file using Prophet serialization.
+
+    Constructs the filename using city name and version. Creates the models
+    directory if it doesn't exist.
+
+    Args:
+        model (Prophet or None): The fitted Prophet model instance to save.
+        city_name (str): The city name used for the filename.
+        version (str, optional): The model version suffix for the filename.
+                                 Defaults to MODEL_VERSION from config.
+        models_dir (str, optional): The directory path to save the model file.
+                                    Defaults to MODELS_DIR from config.
+
+    Returns:
+        bool: True if saving was successful.
+
+    Raises:
+        ValueError: If the input model is None.
+        RuntimeError: If an error occurs during file writing or serialization.
+    """
+    # (Function code remains the same)
     if model is None:
         raise ValueError("Cannot save a None model object.")
     os.makedirs(models_dir, exist_ok=True)
@@ -157,27 +244,33 @@ def save_model(model, city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
         with open(model_path, 'w') as fout:
             json.dump(model_to_json(model), fout)
         log.info(f"Model for {city_name} saved successfully.")
-        # Return True on success if needed by caller, but raising on error is primary
         return True
     except Exception as e:
         log.error(f"Error saving model for {city_name}: {e}", exc_info=True)
-        raise RuntimeError(f"Error saving model for {city_name}: {e}") from e # Raise error
+        raise RuntimeError(f"Error saving model for {city_name}: {e}") from e
 
 # --- Main Execution ---
 def main():
-    """Loads data, loops through configured cities, trains, and saves models."""
+    """Main function to orchestrate the model training process for all target cities.
+
+    Loads data, iterates through cities specified in the config, prepares data,
+    trains the model, and saves the model for each city. Logs a summary at the end.
+    Catches errors during processing for individual cities to allow the script
+    to continue with other cities.
+    """
+    # (Function code remains the same)
     log.info("Starting model training process using config...")
     log.info(f"Target cities from config: {TARGET_CITIES}")
     log.info(f"Model version from config: {MODEL_VERSION}")
 
-    df_master = None # Initialize
+    df_master = None
     try:
         df_master = load_data()
         df_master = reconstruct_city_column(df_master)
     except (DataFileNotFoundError, ValueError, RuntimeError) as e:
          log.critical(f"Failed to load or initially process master data: {e}. Exiting training.")
-         return # Exit if basic data loading fails
-    except Exception as e: # Catch any other unexpected error during load/reconstruct
+         return
+    except Exception as e:
          log.critical(f"Unexpected error loading/processing master data: {e}", exc_info=True)
          return
 
@@ -187,16 +280,14 @@ def main():
     for city in TARGET_CITIES:
         log.info(f"\n===== Processing City: {city} =====")
         try:
-            # Chain the processing steps for clarity
             prophet_df = prepare_prophet_data(df_master, city)
             trained_model = train_prophet_model(prophet_df, city)
-            save_model(trained_model, city) # Uses configured version/dir implicitly
-            successful_cities.append(city) # Add to success list only if all steps pass
+            save_model(trained_model, city)
+            successful_cities.append(city)
         except (ValueError, RuntimeError) as e:
-            # Catch errors specific to this city's processing/training/saving
             log.error(f"Failed processing city {city}: {e}")
             failed_cities.append(city)
-        except Exception as e: # Catch any other unexpected error for this city
+        except Exception as e:
             log.error(f"Unexpected error processing city {city}: {e}", exc_info=True)
             failed_cities.append(city)
 
