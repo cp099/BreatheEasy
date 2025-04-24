@@ -175,9 +175,8 @@ data/Post-Processing/CSV_Files/Hyderabad_AQI_Dataset.csv
 data/Post-Processing/CSV_Files/Mumbai_AQI_Dataset.csv
 data/Post-Processing/CSV_Files/Encoded_AQI_Dataset.csv
 
-# NOTE: Master_AQI_Dataset.csv is INTENTIONALLY NOT ignored here based on previous steps.
-# If it becomes too large for Git, consider Git LFS or adding it here.
-
-# Ignore other large files or sensitive configs if needed
-# config/secrets.yaml
-# data/raw/large_raw_data.zip
+# =========================================
+# # Log files (including rotated ones)
+# =========================================
+*.log
+*.log.*
