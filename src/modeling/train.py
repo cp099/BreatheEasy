@@ -176,10 +176,10 @@ def prepare_prophet_data(df_master, city_name):
     return prophet_df
 
 def train_prophet_model(city_data_df, city_name):
-    """Instantiates, configures, and trains the improved Prophet model.
+    """Instantiates, configures, and trains the final Prophet model for a city.
 
-    Uses specific parameters (multiplicative seasonality, adjusted priors)
-    and adds Indian holidays. Trains on the provided city-specific data.
+    Uses Multiplicative Seasonality and Default Prior Scales based on notebook
+    evaluation. Adds Indian holidays. Trains on the provided city-specific data.
 
     Args:
         city_data_df (pd.DataFrame or None): The prepared DataFrame ('ds', 'y') for the city.
@@ -192,25 +192,39 @@ def train_prophet_model(city_data_df, city_name):
         ValueError: If city_data_df is None.
         RuntimeError: If the model fitting process fails.
     """
-    # (Function code remains the same)
     if city_data_df is None:
          raise ValueError("Input city_data_df is None for training.")
-    log.info(f"Instantiating Improved Prophet model for {city_name}...")
-    model = Prophet(yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=False,
-                    seasonality_mode='multiplicative', changepoint_prior_scale=0.1, seasonality_prior_scale=10.0)
+
+    log.info(f"Instantiating FINAL Prophet model for {city_name} (Multiplicative, Default Priors)...")
+    # Parameters chosen after notebook evaluation (Cell 3B was best)
+    model = Prophet(
+        yearly_seasonality=True,
+        weekly_seasonality=True,
+        daily_seasonality=False,
+        seasonality_mode='multiplicative', # FINAL CHOICE
+        changepoint_prior_scale=0.05,    # FINAL CHOICE (Default)
+        seasonality_prior_scale=10.0,    # FINAL CHOICE (Default)
+        holidays_prior_scale=10.0        # FINAL CHOICE (Default)
+    )
+
+    # Add holidays
     try:
         model.add_country_holidays(country_name='IN')
         log.info(f"Added India holidays for {city_name}.")
     except Exception as e:
-         log.warning(f"Could not add country holidays for 'IN'. Error: {e}")
+         # Log warning but continue training even if holidays fail
+         log.warning(f"Could not add country holidays for 'IN' for {city_name}. Error: {e}")
+
+    # Fit model
     log.info(f"Fitting model to data for {city_name} (using all historical data)...")
     try:
         model.fit(city_data_df)
         log.info(f"Model fitting complete for {city_name}.")
         return model
     except Exception as e:
+        # Log error and raise a specific runtime error if fitting fails
         log.error(f"Error during model fitting for {city_name}: {e}", exc_info=True)
-        raise RuntimeError(f"Error fitting model for {city_name}: {e}") from e
+        raise RuntimeError(f"Error fitting Prophet model for {city_name}: {e}") from e
 
 def save_model(model, city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
     """Saves the trained Prophet model to a JSON file using Prophet serialization.
