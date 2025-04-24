@@ -6,7 +6,7 @@ Handles loading saved Prophet models and generating AQI forecasts.
 Provides functions to:
 - Load city-specific Prophet models (with caching).
 - Generate raw forecasts for a specified number of days ahead.
-- Apply a residual correction to the forecast using the latest live AQI data.
+- Apply a residual correction (with decay) to the forecast using the latest live AQI data.
 - Format the forecast output for easy UI consumption (JSON).
 - Interpret the forecast to provide predicted weekly health risks based on AQI levels.
 
@@ -54,8 +54,8 @@ except ImportError as e:
     class APITimeoutError(Exception): pass
     class APINotFoundError(Exception): pass
     class APIError(Exception): pass
-    def get_current_aqi_for_city(city_name): logging.error("API client unavailable."); return None
-    def get_aqi_info(aqi_value): logging.error("AQI info unavailable."); return None
+    def get_current_aqi_for_city(city_name): log.error("API client unavailable."); return None
+    def get_aqi_info(aqi_value): log.error("AQI info unavailable."); return None
 except Exception as e:
      logging.basicConfig(level=logging.WARNING)
      logging.error(f"Predictor: Error importing dependencies: {e}", exc_info=True)
@@ -67,9 +67,8 @@ except Exception as e:
      class APITimeoutError(Exception): pass
      class APINotFoundError(Exception): pass
      class APIError(Exception): pass
-     def get_current_aqi_for_city(city_name): logging.error("API client unavailable."); return None
-     def get_aqi_info(aqi_value): logging.error("AQI info unavailable."); return None
-
+     def get_current_aqi_for_city(city_name): log.error("API client unavailable."); return None
+     def get_aqi_info(aqi_value): log.error("AQI info unavailable."); return None
 
 # --- Get Logger ---
 log = logging.getLogger(__name__)
@@ -80,31 +79,14 @@ relative_models_dir = CONFIG.get('paths', {}).get('models_dir', 'models')
 MODELS_DIR = os.path.join(PROJECT_ROOT, relative_models_dir)
 MODEL_VERSION = CONFIG.get('modeling', {}).get('prophet_model_version', 'v2')
 DEFAULT_FORECAST_DAYS = CONFIG.get('modeling', {}).get('forecast_days', 5)
+# --- NEW: Configuration for Decay Factor ---
+RESIDUAL_DECAY_FACTOR = CONFIG.get('modeling', {}).get('residual_decay_factor', 0.85) # Example default
 
 # --- Model Loading Cache ---
 _loaded_models_cache = {}
 
 def load_prophet_model(city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
-    """Loads a specified trained Prophet model from a JSON file, using an in-memory cache.
-
-    Constructs the model file path based on city name, version, and models directory
-    specified in the configuration.
-
-    Args:
-        city_name (str): The name of the city for which to load the model.
-        version (str, optional): The model version string (suffix).
-                                 Defaults to MODEL_VERSION from config.
-        models_dir (str, optional): The absolute path to the directory containing model files.
-                                   Defaults to MODELS_DIR from config.
-
-    Returns:
-        Prophet: The loaded (deserialized) Prophet model instance.
-
-    Raises:
-        ModelFileNotFoundError: If the expected model file doesn't exist.
-        ModelLoadError: If the model file exists but an error occurs during
-                        deserialization (e.g., corrupted file, incompatible version).
-    """
+    """Loads a specified trained Prophet model from a JSON file, using an in-memory cache."""
     # (Function code remains the same)
     global _loaded_models_cache
     model_key = f"{city_name}_{version}"
@@ -129,42 +111,12 @@ def load_prophet_model(city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
         log.error(msg, exc_info=True)
         raise ModelLoadError(msg) from e
 
-# --- Prediction Function (Section 4 Core) ---
+# --- Prediction Function (Section 4 Core - CORRECTED WITH DECAY) ---
 def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_residual_correction=True, last_known_aqi=None):
-    """Generates a multi-day AQI forecast DataFrame for a specific city.
-
-    Loads the appropriate pre-trained Prophet model. Creates future dates
-    and generates predictions using the model. Optionally fetches the latest
-    live AQI via API (or uses a provided value) to calculate a residual
-    (difference between latest actual and model's prediction for that day)
-    and applies this residual to the forecast values as an adjustment.
-
-    Args:
-        target_city (str): The city for which to generate the forecast.
-        days_ahead (int, optional): Number of days into the future to forecast.
-                                    Defaults to DEFAULT_FORECAST_DAYS from config.
-        apply_residual_correction (bool, optional): If True, attempts to fetch the
-                                                   latest AQI and apply correction.
-                                                   Defaults to True.
-        last_known_aqi (float, optional): If provided, uses this value for residual
-                                          correction instead of calling the API. Assumed
-                                          to be for the model's last training date.
-                                          Defaults to None.
-
-    Returns:
-        pandas.DataFrame or None: A DataFrame containing the forecast results with columns:
-                                  'ds' (Timestamp): Forecast date.
-                                  'yhat' (float): Original Prophet forecast value.
-                                  'yhat_lower' (float): Lower uncertainty bound.
-                                  'yhat_upper' (float): Upper uncertainty bound.
-                                  'residual' (float): The calculated residual used for adjustment (0 if not applied).
-                                  'yhat_adjusted' (float): The final forecast value after residual adjustment (clipped >= 0).
-                                  Returns None if a critical error occurs (e.g., model not found,
-                                  prediction generation fails). API errors during correction are logged
-                                  but allow the function to return the unadjusted forecast.
-    """
-    # (Function code remains the same)
-    log.info(f"Generating {days_ahead}-day forecast for {target_city}...")
+    """Generates an AQI forecast DataFrame for the actual next N days from today,
+    optionally adjusting based on the latest actual AQI using decay."""
+    # (Keep initial part of function: load model, determine dates, initial forecast)
+    log.info(f"Generating {days_ahead}-day forecast for {target_city} starting from tomorrow...")
     try:
         trained_model = load_prophet_model(target_city)
     except (ModelFileNotFoundError, ModelLoadError) as e:
@@ -175,86 +127,117 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
         return None
 
     try:
-        future_dates_df = trained_model.make_future_dataframe(periods=days_ahead, include_history=False)
-        log.info(f"Predicting for dates: {future_dates_df['ds'].min().date()} to {future_dates_df['ds'].max().date()}")
+        last_train_date = trained_model.history_dates.max()
+        today_actual_date = pd.Timestamp.now().normalize()
+        log.info(f"Reference 'today' for forecast generation: {today_actual_date.date()}")
+        if today_actual_date < last_train_date:
+             log.warning(f"Current date {today_actual_date.date()} is before model's last training date {last_train_date.date()}. Using last train date as reference 'today'.")
+             today_ds_ref = last_train_date # Use last train date for prediction lookup
+        else:
+             today_ds_ref = today_actual_date # Use actual today for prediction lookup
+             offset_days = (today_actual_date - last_train_date).days
+
+        total_periods_to_predict = (today_ds_ref - last_train_date).days + days_ahead
+        log.info(f"Days between last train date and reference date: {(today_ds_ref - last_train_date).days}. Total periods to predict: {total_periods_to_predict}")
+
+        if total_periods_to_predict <= 0:
+            log.error(f"Total periods to predict is not positive ({total_periods_to_predict}). Cannot forecast.")
+            return None
+
+        future_dates_df_full = trained_model.make_future_dataframe(periods=total_periods_to_predict, include_history=False)
+        future_dates_df_full = future_dates_df_full[future_dates_df_full['ds'] > last_train_date]
+        if future_dates_df_full.empty:
+             log.error("Failed to generate any future dates past training data.")
+             return None
+
+        log.info("Generating initial long-range forecast...")
+        full_forecast = trained_model.predict(future_dates_df_full)
+
+        start_forecast_date = today_actual_date + pd.Timedelta(days=1)
+        end_forecast_date = today_actual_date + pd.Timedelta(days=days_ahead)
+        log.info(f"Extracting target forecast slice from {start_forecast_date.date()} to {end_forecast_date.date()}")
+        target_forecast_mask = (full_forecast['ds'] >= start_forecast_date) & (full_forecast['ds'] <= end_forecast_date)
+        forecast = full_forecast.loc[target_forecast_mask, ['ds', 'yhat', 'yhat_lower', 'yhat_upper']].copy()
+
+        if forecast.empty:
+             log.warning(f"No forecast data generated for the target date range {start_forecast_date.date()} to {end_forecast_date.date()}.")
+             return None
+
     except Exception as e:
-         log.error(f"Error creating future dataframe for {target_city}: {e}")
-         return None
-    if future_dates_df.empty:
-        log.error("make_future_dataframe returned empty dataframe for {target_city}.")
+        log.error(f"Failed during forecast generation or slicing for {target_city}: {e}", exc_info=True)
         return None
 
-    try:
-        forecast = trained_model.predict(future_dates_df)
-        forecast = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
-    except Exception as e:
-        log.error(f"Failed to generate initial Prophet forecast for {target_city}: {e}", exc_info=True)
-        return None
-
+    # Apply Residual Correction (best effort)
     forecast['yhat_adjusted'] = forecast['yhat'].copy()
     forecast['residual'] = 0.0
     actual_today = None
+
     if apply_residual_correction:
-        log.info(f"Attempting residual correction for {target_city}...")
+        log.info(f"Attempting residual correction based on reference 'today': {today_ds_ref.date()}")
         try:
-            today_ds = trained_model.history_dates.max()
-            log.info(f"Using model's last training date as 'today' for correction: {today_ds.date()}")
-            today_df = pd.DataFrame({'ds': [today_ds]})
-            today_forecast = trained_model.predict(today_df)
-            if not today_forecast.empty:
-                predicted_today = today_forecast['yhat'].iloc[0]
-                log.info(f"Model's prediction for {today_ds.date()}: {predicted_today:.2f}")
+            # Find model's prediction for the reference date (today or last train date)
+            predicted_today_row = full_forecast[full_forecast['ds'] == today_ds_ref]
+            if not predicted_today_row.empty:
+                predicted_today = predicted_today_row['yhat'].iloc[0]
+                log.info(f"Model's prediction for reference date {today_ds_ref.date()}: {predicted_today:.2f}")
+
+                # Get actual value (API or provided)
                 if last_known_aqi is not None:
                      actual_today = float(last_known_aqi)
-                     log.info(f"Using provided last_known_aqi for {today_ds.date()}: {actual_today}")
+                     log.info(f"Using provided last_known_aqi for {today_ds_ref.date()}: {actual_today}")
                 else:
                     log.info(f"Fetching current AQI from API for {target_city}...")
-                    current_aqi_info = get_current_aqi_for_city(target_city)
+                    current_aqi_info = get_current_aqi_for_city(target_city) # Use original city name for API
                     if current_aqi_info and 'aqi' in current_aqi_info:
                         actual_today = float(current_aqi_info['aqi'])
-                        log.info(f"Actual current AQI from API: {actual_today}")
+                        log.info(f"Actual current AQI from API (proxy for today): {actual_today}")
                     else:
-                         log.warning(f"Could not get current AQI from API for {target_city}. Skipping correction.")
+                         log.warning(f"Could not get current AQI from API. Skipping correction.")
+
+                # --- Apply DECAYING residual correction IF actual value found ---
                 if actual_today is not None:
-                    residual = actual_today - predicted_today
-                    forecast['residual'] = residual
-                    log.info(f"Calculated residual: {residual:.2f}")
-                    forecast['yhat_adjusted'] = (forecast['yhat'] + residual).clip(lower=0)
-                    log.info(f"Applied residual correction.")
-                else:
-                     forecast['residual'] = 0.0
-                     forecast['yhat_adjusted'] = forecast['yhat'].copy()
+                    base_residual = actual_today - predicted_today
+                    log.info(f"Calculated base residual: {base_residual:.2f}")
+
+                    applied_residuals = []
+                    current_decay = 1.0
+                    for i in range(len(forecast)):
+                         correction = base_residual * current_decay
+                         applied_residuals.append(correction)
+                         current_decay *= RESIDUAL_DECAY_FACTOR # Apply decay
+
+                    # Add the calculated decaying residual to yhat
+                    # Ensure index alignment if forecast DataFrame was sliced
+                    if len(applied_residuals) == len(forecast):
+                         forecast['residual'] = applied_residuals
+                         forecast['yhat_adjusted'] = (forecast['yhat'] + forecast['residual']).clip(lower=0)
+                         log.info(f"Applied decaying residual correction (factor={RESIDUAL_DECAY_FACTOR}).")
+                    else:
+                         log.warning(f"Length mismatch between forecast ({len(forecast)}) and residuals ({len(applied_residuals)}). Skipping correction.")
+                         forecast['residual'] = 0.0
+                         forecast['yhat_adjusted'] = forecast['yhat'].copy()
+                # --- End of decaying residual logic ---
+
             else:
-                 log.warning(f"Could not generate prediction for {today_ds.date()}. Skipping correction.")
+                 log.warning(f"Could not find prediction for ref date {today_ds_ref.date()}. Skipping correction.")
+                 # Ensure reset if prediction wasn't found
                  forecast['residual'] = 0.0
                  forecast['yhat_adjusted'] = forecast['yhat'].copy()
+
         except Exception as e:
-            log.error(f"Error during residual correction step: {e}. Proceeding without correction.", exc_info=True)
+            log.error(f"Error during residual correction: {e}. Proceeding without.", exc_info=True)
             forecast['residual'] = 0.0
             forecast['yhat_adjusted'] = forecast['yhat'].copy()
     else:
-        log.info("Residual correction not applied.")
+        log.info("Residual correction not applied as per request.")
 
-    log.info(f"Forecast generation complete for {target_city}.")
+    log.info(f"Forecast generation complete for {target_city} for target dates.")
     return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper', 'residual', 'yhat_adjusted']]
 
-
-# --- Helper Function for UI Formatting (Section 4 UI) ---
+# --- Helper Function for UI Formatting ---
+# (Keep format_forecast_for_ui exactly as it was)
 def format_forecast_for_ui(forecast_df):
-    """Formats the forecast DataFrame into a list of dictionaries suitable for UI (JSON).
-
-    Selects the date ('ds') and adjusted forecast ('yhat_adjusted'), formats the
-    date as 'YYYY-MM-DD', rounds the AQI to an integer, and returns a list
-    of dictionaries.
-
-    Args:
-        forecast_df (pd.DataFrame or None): The DataFrame returned by generate_forecast.
-
-    Returns:
-        list[dict]: A list where each dict has 'date' (str) and 'predicted_aqi' (int).
-                    Returns an empty list if input is None or empty.
-    """
-    # (Function code remains the same)
+    """Formats forecast DataFrame into list of dicts for UI."""
     if forecast_df is None or forecast_df.empty: return []
     ui_data = []
     for index, row in forecast_df.iterrows():
@@ -269,41 +252,19 @@ def format_forecast_for_ui(forecast_df):
              continue
     return ui_data
 
-
-# --- Function for Section 6 (Predicted Weekly Risks) ---
+# --- Function for Section 6 ---
+# (Keep get_predicted_weekly_risks exactly as it was - it calls the updated generate_forecast)
 def get_predicted_weekly_risks(city_name, days_ahead=DEFAULT_FORECAST_DAYS):
-    """Generates forecast and interprets health implications for each predicted day.
-
-    Calls generate_forecast to get the N-day AQI predictions (using residual
-    correction by default). Then, for each day's predicted AQI, it determines
-    the corresponding CPCB AQI category and health implication using get_aqi_info.
-
-    Args:
-        city_name (str): The city for which to generate predicted risks.
-        days_ahead (int, optional): Number of days to forecast. Defaults to
-                                    DEFAULT_FORECAST_DAYS from config.
-
-    Returns:
-        list[dict]: A list of dictionaries, one for each forecast day, containing:
-                    - 'date' (str): Date in 'YYYY-MM-DD' format.
-                    - 'predicted_aqi' (int): The predicted AQI value (adjusted).
-                    - 'level' (str): The corresponding CPCB AQI category level (e.g., 'Moderate').
-                    - 'color' (str): Hex color code associated with the level.
-                    - 'implications' (str): Health implications text for the level.
-                    Returns an empty list if the forecast cannot be generated.
-    """
-    # (Function code remains the same)
+    """Generates forecast and interprets health implications for each predicted day."""
     log.info(f"Getting predicted weekly risks (Section 6) for {city_name} for {days_ahead} days...")
     try:
         forecast_df = generate_forecast(target_city=city_name, days_ahead=days_ahead, apply_residual_correction=True)
     except Exception as e:
         log.error(f"Unhandled error during forecast generation for weekly risks: {e}", exc_info=True)
         forecast_df = None
-
     if forecast_df is None or forecast_df.empty:
         log.error(f"Failed to generate forecast for {city_name}. Cannot determine predicted risks.")
         return []
-
     predicted_risks_list = []
     log.info(f"Interpreting health implications for {len(forecast_df)} forecasted days...")
     for index, row in forecast_df.iterrows():
@@ -336,4 +297,4 @@ def get_predicted_weekly_risks(city_name, days_ahead=DEFAULT_FORECAST_DAYS):
 # (Keep existing __main__ block as is)
 if __name__ == "__main__":
     # ... (test code remains the same) ...
-    pass # Added pass for valid syntax if test code removed/commented
+    pass
