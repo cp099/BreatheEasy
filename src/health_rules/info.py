@@ -14,7 +14,6 @@ import logging # Standard logging import
 import pandas as pd # Added for pd.isna check
 
 # --- Get Logger ---
-# Get the logger instance for this module. It inherits root config.
 log = logging.getLogger(__name__)
 # Note: CONFIG is not explicitly needed here, logging config comes via root logger
 
@@ -57,7 +56,6 @@ def get_aqi_info(aqi_value):
                       non-numeric, None) or if no matching range is found (which
                       should not happen for valid non-negative numbers given the scale).
     """
-    # (Function code remains the same)
     if pd.isna(aqi_value) or not isinstance(aqi_value, (int, float)) or aqi_value < 0:
         log.warning(f"Invalid AQI value received: {aqi_value}. Returning None.")
         return None
@@ -87,7 +85,6 @@ def get_aqi_info(aqi_value):
     return None
 
 # --- Example Usage Block ---
-# (Keep existing __main__ block as is)
 if __name__ == "__main__":
     # ... (test code remains the same) ...
     pass # Added pass for valid syntax if test code removed/commented

@@ -81,7 +81,6 @@ def interpret_pollutant_risks(iaqi_data):
                    The format is typically "{POLLUTANT} ({Severity}): {Risk Description}".
                    Returns an empty list if no thresholds are met or if input is invalid.
     """
-    # (Function code remains the same)
     triggered_risks = []
     if not iaqi_data or not isinstance(iaqi_data, dict):
         log.warning("Invalid or empty iaqi_data received for interpretation.")

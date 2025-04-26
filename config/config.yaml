@@ -33,5 +33,3 @@ logging:
   log_filename: app.log # Name of the log file (will appear in project root)
   log_file_level: DEBUG # Log DEBUG and above to file, INFO and above to console (example)
   log_console_level: INFO # Log INFO and above to console
-
-# Add other sections as needed

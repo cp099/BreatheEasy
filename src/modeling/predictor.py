@@ -23,7 +23,6 @@ from prophet import Prophet
 from prophet.serialize import model_from_json
 
 # --- Setup Project Root Path ---
-# (Keep existing PROJECT_ROOT logic)
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
@@ -36,7 +35,6 @@ if PROJECT_ROOT not in sys.path:
      sys.path.insert(0, PROJECT_ROOT)
 
 # --- Import Configuration and Other Modules ---
-# (Keep existing import logic with fallbacks)
 try:
     from src.config_loader import CONFIG
     from src.api_integration.client import get_current_aqi_for_city
@@ -74,7 +72,6 @@ except Exception as e:
 log = logging.getLogger(__name__)
 
 # --- Configuration Values ---
-# (Keep logic for getting config values)
 relative_models_dir = CONFIG.get('paths', {}).get('models_dir', 'models')
 MODELS_DIR = os.path.join(PROJECT_ROOT, relative_models_dir)
 MODEL_VERSION = CONFIG.get('modeling', {}).get('prophet_model_version', 'v2')
@@ -87,7 +84,6 @@ _loaded_models_cache = {}
 
 def load_prophet_model(city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
     """Loads a specified trained Prophet model from a JSON file, using an in-memory cache."""
-    # (Function code remains the same)
     global _loaded_models_cache
     model_key = f"{city_name}_{version}"
     if model_key in _loaded_models_cache:
@@ -235,7 +231,6 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
     return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper', 'residual', 'yhat_adjusted']]
 
 # --- Helper Function for UI Formatting ---
-# (Keep format_forecast_for_ui exactly as it was)
 def format_forecast_for_ui(forecast_df):
     """Formats forecast DataFrame into list of dicts for UI."""
     if forecast_df is None or forecast_df.empty: return []

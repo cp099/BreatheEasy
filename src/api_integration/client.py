@@ -104,7 +104,6 @@ def get_city_aqi_data(city_name):
         ValueError: If the API response is not valid JSON.
         requests.exceptions.RequestException: For underlying network connection issues.
     """
-    # (Function code remains the same)
     aqicn_base_url = CONFIG.get('apis', {}).get('aqicn', {}).get('base_url', "https://api.waqi.info/feed")
 
     if not AQICN_TOKEN:

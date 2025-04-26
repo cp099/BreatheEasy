@@ -61,5 +61,3 @@ class PredictionError(BreatheEasyError):
 class ConfigError(BreatheEasyError):
     """Raised for general configuration loading/parsing issues."""
     pass
-
-# Add more specific exceptions as needed

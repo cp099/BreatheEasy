@@ -16,7 +16,6 @@ import sys # Import sys for path manipulation
 from functools import lru_cache # Use LRU cache for efficient loading
 
 # --- Determine Project Root ---
-# (Keep existing PROJECT_ROOT logic)
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
@@ -71,7 +70,6 @@ def load_config(config_path=CONFIG_PATH):
     Returns:
         dict: A dictionary containing the configuration settings.
     """
-    # (Function code remains the same)
     log = logging.getLogger(__name__)
     log.info(f"Attempting to load configuration from: {config_path}")
     if not os.path.exists(config_path):
