@@ -60,45 +60,120 @@ WEATHERAPI_FORECAST_URL = CONFIG.get('apis', {}).get('weatherapi', {}).get('fore
 
 # --- Current Weather Function ---
 def get_current_weather(city_name):
-    """Fetches current weather data using WeatherAPI.com service."""
-    # (Keep exact code from previous version - no changes needed here)
-    if not WEATHERAPI_KEY: raise APIKeyError("WEATHERAPI_API_KEY missing.", service="WeatherAPI")
-    if not WEATHERAPI_CURRENT_URL: raise ConfigError("WeatherAPI base URL missing.")
+    """Fetches current weather data using the WeatherAPI.com service.
+
+    Constructs the request using the base URL from configuration and the
+    API key from environment variables. Parses the response and extracts
+    key weather metrics. Handles API errors and network issues by raising
+    specific exceptions or returning None for 'city not found'.
+
+    Args:
+        city_name (str): The name of the city (e.g., 'Delhi, India', 'London').
+                         Using "City, Country" is recommended for accuracy.
+
+    Returns:
+        dict or None: A dictionary containing simplified weather information:
+                      - temp_c, feelslike_c, humidity, pressure_mb, condition_text,
+                      - condition_icon, wind_kph, wind_dir, uv_index, city, region,
+                      - country, last_updated, localtime.
+                      Returns None ONLY if the API successfully responds but indicates
+                      the city was not found (e.g., error code 1006).
+
+    Raises:
+        APIKeyError: If WEATHERAPI_API_KEY is missing or invalid (HTTP 401/403 or specific API codes).
+        ConfigError: If WeatherAPI base URL is missing in configuration.
+        APITimeoutError: If the request times out.
+        APINotFoundError: If the API endpoint returns HTTP 404.
+        APIError: For other HTTP errors (e.g., 400, 403, 5xx) or other API-specific errors.
+        ValueError: If the API response is not valid JSON.
+        requests.exceptions.RequestException: For underlying network connection issues (wrapped in APIError).
+    """
+    if not WEATHERAPI_KEY:
+        msg = "WEATHERAPI_API_KEY not found in environment variables."
+        log.error(msg); raise APIKeyError(msg, service="WeatherAPI")
+    if not WEATHERAPI_CURRENT_URL:
+        msg = "WeatherAPI current base URL missing."
+        log.error(msg); raise ConfigError(msg)
+
     params = {'key': WEATHERAPI_KEY, 'q': city_name, 'aqi': 'no'}
     log.info(f"Requesting current weather from WeatherAPI for: {city_name} using URL: {WEATHERAPI_CURRENT_URL}")
+
     try:
         response = requests.get(WEATHERAPI_CURRENT_URL, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        response.raise_for_status() # Raise HTTPError for 4xx/5xx first
+        data = response.json()      # Raise JSONDecodeError if not JSON
+        log.debug(f"Raw WeatherAPI response JSON: {data}")
+
+        # Check for application-level errors within the JSON response
         if "error" in data:
             error_info = data["error"]
             error_msg = error_info.get('message', 'Unknown API error')
             error_code = error_info.get('code')
-            log.error(f"WeatherAPI error for '{city_name}': {error_msg} (Code: {error_code})")
-            if error_code == 1006: return None
-            elif error_code in [2006, 2007, 2008, 1002, 1003, 1005]: raise APIKeyError(f"WeatherAPI Error Code {error_code}: {error_msg}", service="WeatherAPI")
-            else: raise APIError(f"WeatherAPI Error Code {error_code}: {error_msg}", service="WeatherAPI")
-        current_data = data.get("current", {}); location_data = data.get("location", {}); condition_data = current_data.get("condition", {})
-        weather_info = {
-            "temp_c": current_data.get("temp_c"), "feelslike_c": current_data.get("feelslike_c"),
-            "humidity": current_data.get("humidity"), "pressure_mb": current_data.get("pressure_mb"),
-            "condition_text": condition_data.get("text"), "condition_icon": condition_data.get("icon"),
-            "wind_kph": current_data.get("wind_kph"), "wind_dir": current_data.get("wind_dir"),
-            "uv_index": current_data.get("uv"), "city": location_data.get("name"),
-            "region": location_data.get("region"), "country": location_data.get("country"),
-            "last_updated": current_data.get("last_updated"), "localtime": location_data.get("localtime")}
-        log.info(f"Processed current weather for {city_name}: Temp={weather_info.get('temp_c')}C, Cond={weather_info.get('condition_text')}")
-        return weather_info
-    except requests.exceptions.Timeout as e: raise APITimeoutError(f"WeatherAPI current timed out for '{city_name}'.", service="WeatherAPI") from e
+            log.error(f"WeatherAPI returned error for '{city_name}': {error_msg} (Code: {error_code})")
+            # Specific handling for 'city not found' - return None
+            if error_code == 1006:
+                 log.warning(f"City '{city_name}' not found by WeatherAPI.")
+                 return None
+            # Raise APIKeyError for relevant codes
+            elif error_code in [1002, 1003, 1005, 2006, 2007, 2008]:
+                 raise APIKeyError(f"WeatherAPI Error Code {error_code}: {error_msg}", service="WeatherAPI")
+            # Raise generic APIError for other JSON errors
+            else:
+                 raise APIError(f"WeatherAPI Error Code {error_code}: {error_msg}", service="WeatherAPI")
+        # --- If no "error" key, proceed assuming success ---
+        else:
+            # Extract Data ONLY if no error field was present
+            current_data = data.get("current", {})
+            location_data = data.get("location", {})
+            condition_data = current_data.get("condition", {})
+            timestamp_local_str = location_data.get("localtime")
+
+            # Optional check for essential data parts
+            if not current_data or not location_data:
+                 msg = f"WeatherAPI response missing essential data fields ('current' or 'location') for {city_name}"
+                 log.warning(msg)
+                 raise APIError(msg, service="WeatherAPI") # Raise error for unexpected structure
+
+            # Create the weather info dictionary
+            weather_info = {
+                "temp_c": current_data.get("temp_c"), "feelslike_c": current_data.get("feelslike_c"),
+                "humidity": current_data.get("humidity"), "pressure_mb": current_data.get("pressure_mb"),
+                "condition_text": condition_data.get("text"), "condition_icon": condition_data.get("icon"),
+                "wind_kph": current_data.get("wind_kph"), "wind_dir": current_data.get("wind_dir"),
+                "uv_index": current_data.get("uv"), "city": location_data.get("name"),
+                "region": location_data.get("region"), "country": location_data.get("country"),
+                "last_updated": current_data.get("last_updated"), "localtime": timestamp_local_str
+            }
+            log.info(f"Processed current weather for {city_name}: Temp={weather_info.get('temp_c')}C, Cond={weather_info.get('condition_text')}")
+            return weather_info
+
+    # --- ORDER of except blocks MATTERS ---
+    # Catch specific custom exceptions FIRST if they were raised within the try block
+    except (APIKeyError, APITimeoutError, APINotFoundError, APIError) as api_exc:
+        log.error(f"Caught Specific API Error: {api_exc}") # Log it again if needed
+        raise api_exc # Re-raise the specific error to be caught by caller/test
+
+    # Catch specific requests exceptions if not already handled/wrapped above
+    except requests.exceptions.Timeout as e:
+        msg = f"Request to WeatherAPI current timed out for '{city_name}'."
+        log.error(msg); raise APITimeoutError(msg, service="WeatherAPI") from e
     except requests.exceptions.HTTPError as http_err:
         status_code = http_err.response.status_code; log.error(f"WeatherAPI current HTTP error: {http_err} - Status: {status_code}")
         if status_code == 401: raise APIKeyError("Auth failed (401). Check WEATHERAPI_API_KEY.", service="WeatherAPI") from http_err
         elif status_code == 403: raise APIError("Forbidden (403). Check key/plan.", status_code=status_code, service="WeatherAPI") from http_err
         elif status_code == 404: raise APINotFoundError(f"WeatherAPI current endpoint not found ({WEATHERAPI_CURRENT_URL}).", service="WeatherAPI") from http_err
         else: raise APIError(f"HTTP error {status_code}", status_code=status_code, service="WeatherAPI") from http_err
-    except requests.exceptions.RequestException as req_err: raise APIError(f"WeatherAPI current network error: {req_err}", service="WeatherAPI") from req_err
-    except (ValueError, json.JSONDecodeError) as json_err: raise ValueError(f"WeatherAPI current JSON decoding error: {json_err}") from json_err
-    except Exception as e: raise APIError(f"Unexpected error in get_current_weather: {e}", service="WeatherAPI") from e
+    except requests.exceptions.RequestException as req_err:
+        msg = f"WeatherAPI current network error: {req_err}"
+        log.error(msg); raise APIError(msg, service="WeatherAPI") from req_err
+    except (ValueError, json.JSONDecodeError) as json_err:
+        msg = f"WeatherAPI current JSON decoding error: {json_err}"
+        log.error(msg); raise ValueError(msg) from json_err
+    except Exception as e: # FINAL Catch-all for truly unexpected errors
+        msg = f"Unexpected error in get_current_weather (WeatherAPI): {e}"
+        log.error(msg, exc_info=True)
+        # Wrap it in a generic APIError for consistency
+        raise APIError(msg, service="WeatherAPI") from e
 
 
 # --- NEW Function: Get Weather Forecast ---

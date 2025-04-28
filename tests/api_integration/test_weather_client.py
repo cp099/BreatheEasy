@@ -144,7 +144,7 @@ def test_get_current_weather_http_error_401(mocker):
     with pytest.raises(APIKeyError) as excinfo:
         get_current_weather("Delhi")
 
-    assert "Authorization failed (HTTP 401)" in str(excinfo.value)
+    assert "Auth failed (401). Check WEATHERAPI_API_KEY." in str(excinfo.value)
     assert excinfo.value.service == "WeatherAPI"
 
 def test_get_current_weather_http_error_400(mocker):
