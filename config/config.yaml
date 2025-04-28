@@ -30,11 +30,11 @@ modeling:
   weather_regressors:
     - temperature_2m # Daily Avg Temp
     - relative_humidity_2m # Daily Avg Humidity
-    - rain 
     - wind_speed_10m # Daily Avg Wind Speed
-    - pressure_msl # Daily Avg Pressure
-    - cloud_cover # Daily Avg Cloud Cover
-    - wind_gusts_10m 
+    #- rain 
+    #- pressure_msl # Daily Avg Pressure
+    #- cloud_cover # Daily Avg Cloud Cover
+    #- wind_gusts_10m 
     # --- Likely Omit ---
     # - apparent_temperature (often highly correlated with temp/humidity)
     # - dew_point_2m (correlated with temp/humidity)
