@@ -16,14 +16,33 @@ apis:
 
 # Modeling Configuration
 modeling:
-  target_cities: # Cities to train models for and likely support in UI
+  target_cities: # Keep your list
     - Delhi
     - Mumbai
     - Bangalore
     - Chennai
     - Hyderabad
-  prophet_model_version: "v2" # Version suffix for model filenames
-  forecast_days: 5 # Default number of days to forecast ahead
+  prophet_model_version: "v3_weather" # Use new version suffix
+  forecast_days: 3 # Use 3-day forecast horizon
+  residual_decay_factor: 0.85 # Keep or adjust if desired
+  # List the weather columns to use as regressors
+  # Choose a subset based on likely importance & availability in forecasts
+  weather_regressors:
+    - temperature_2m # Daily Avg Temp
+    - relative_humidity_2m # Daily Avg Humidity
+    - rain 
+    - wind_speed_10m # Daily Avg Wind Speed
+    - pressure_msl # Daily Avg Pressure
+    - cloud_cover # Daily Avg Cloud Cover
+    - wind_gusts_10m 
+    # --- Likely Omit ---
+    # - apparent_temperature (often highly correlated with temp/humidity)
+    # - dew_point_2m (correlated with temp/humidity)
+    # - precipitation (often redundant if 'rain' is used)
+    # - snowfall / snow_depth (likely irrelevant for most target cities)
+    # - cloud_cover_low/mid/high (total cloud_cover might be sufficient)
+    # - wind_speed_100m (10m is usually more relevant for surface pollution)
+    # - wind_direction_10m / wind_direction_100m (complex to use as regressor)
 
 # Logging Configuration (Example - can be refined later)
 logging:
