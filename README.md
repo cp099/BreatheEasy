@@ -116,7 +116,7 @@ source venv/bin/activate
 # Activate on Windows (Command Prompt)
 venv\Scripts\activate.bat
 
-# Activate on Windows (PowerShell)
+# Activate on Windows (PowerShell)   
 venv\Scripts\Activate.ps1
 ```
 
