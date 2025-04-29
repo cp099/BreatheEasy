@@ -42,41 +42,41 @@ Air quality index (AQI) data is widely available, but translating numerical valu
 ## Project Structure
 ```
 BREATHEEASY/
-├── config/                                                                           # Configuration files
-│ └── config.yaml                                                                     # Main YAML configuration
+├── config/                                             # Configuration files
+│ └── config.yaml                                       # Main YAML configuration
 ├── data/
 │ └── Post-Processing/
 │ └── CSV_Files/
-│ └── Master_AQI_Dataset.csv                                                          # Merged historical AQI + Weather data
-├── models/                                                                           # Saved Prophet models (with weather regressors)
+│ └── Master_AQI_Dataset.csv                            # Merged historical AQI + Weather data
+├── models/                                             # Saved Prophet models (with weather regressors)
 │ ├── Bangalore_prophet_model_v3_weather.json
 │ ├── Chennai_prophet_model_v3_weather.json
 │ ├── Delhi_prophet_model_v3_weather.json
 │ ├── Hyderabad_prophet_model_v3_weather.json
 │ └── Mumbai_prophet_model_v3_weather.json
-├── notebook/                                                                         # Jupyter notebooks for exploration/development
-│ ├── 1_Historical_Analysis.ipynb                                                     # Notebook for Sec 1 analysis ideas
-│ └── 2_AQI_Forecasting_Development.ipynb                                             # Notebook for Sec 4 model dev/eval ideas
-├── src/                                                                              # Main backend source code
+├── notebook/                                           # Jupyter notebooks for exploration/development
+│ ├── 1_Historical_Analysis.ipynb                       # Notebook for Sec 1 analysis ideas
+│ └── 2_AQI_Forecasting_Development.ipynb               # Notebook for Sec 4 model dev/eval ideas
+├── src/                                                # Main backend source code
 │ ├── init.py
-│ ├── config_loader.py                                                                # Loads config.yaml, sets up logging
-│ ├── exceptions.py                                                                   # Custom exception classes
-│ ├── analysis/                                                                       # Historical data analysis functions
+│ ├── config_loader.py                                  # Loads config.yaml, sets up logging
+│ ├── exceptions.py                                     # Custom exception classes
+│ ├── analysis/                                         # Historical data analysis functions
 │ │ ├── init.py
 │ │ └── historical.py
-│ ├── api_integration/                                                                # External API clients
+│ ├── api_integration/                                  # External API clients
 │ │ ├── init.py
-│ │ ├── client.py                                                                     # AQICN API client (AQI/Pollutants)
-│ │ └── weather_client.py                                                             # WeatherAPI.com client (Current & Forecast)
-│ ├── health_rules/                                                                   # AQI scales, thresholds, interpretation
+│ │ ├── client.py                                       # AQICN API client (AQI/Pollutants)
+│ │ └── weather_client.py                               # WeatherAPI.com client (Current & Forecast)
+│ ├── health_rules/                                     # AQI scales, thresholds, interpretation
 │ │ ├── init.py
-│ │ ├── info.py                                                                       # AQI scale definitions (CPCB)
-│ │ └── interpreter.py                                                                # Pollutant risk interpretation (Sec 5)
-│ └── modeling/                                                                       # ML model training and prediction
+│ │ ├── info.py                                         # AQI scale definitions (CPCB)
+│ │ └── interpreter.py                                  # Pollutant risk interpretation (Sec 5)
+│ └── modeling/                                         # ML model training and prediction
 │ ├── init.py
-│ ├── predictor.py                                                                    # Loads models, generates forecasts (Sec 4 & 6)
-│ └── train.py                                                                        # Trains and saves models for all cities
-├── tests/                                                                            # Automated tests
+│ ├── predictor.py                                      # Loads models, generates forecasts (Sec 4 & 6)
+│ └── train.py                                          # Trains and saves models for all cities
+├── tests/                                              # Automated tests
 │ ├── init.py
 │ ├── api_integration/
 │ │ ├── init.py
@@ -86,11 +86,11 @@ BREATHEEASY/
 │ ├── init.py
 │ ├── test_info.py
 │ └── test_interpreter.py
-├── .env                                                                              # Environment variables (API keys) - MANUALLY CREATED
-├── .gitignore                                                                        # Files/directories ignored by Git
-├── requirements.txt                                                                  # Python dependencies
-├── run_full_test.py                                                                  # Script for end-to-end backend testing
-└── README.md                                                                         # This file
+├── .env                                                # Environment variables (API keys) - MANUALLY CREATED
+├── .gitignore                                          # Files/directories ignored by Git
+├── requirements.txt                                    # Python dependencies
+├── run_full_test.py                                    # Script for end-to-end backend testing
+└── README.md                                           # This file
 ```
 
 ## Setup Instructions
@@ -146,8 +146,8 @@ pip install -r requirements.txt
 1. Create the `.env` __file:__ In the __root directory__ (`BreatheEasy/`), create a file named `.env`.
 
 2. __Get API Keys:__
- - __AQICN:__ Sign up and get a token from [(https://aqicn.org/data-platform/token/)].
- - __WeatherAPI:__ Sign up and get a key from [(https://www.weatherapi.com/)].
+ - __AQICN:__ Sign up and get a token from https://aqicn.org/data-platform/token/.
+ - __WeatherAPI:__ Sign up and get a key from https://www.weatherapi.com/.
 
 3. __Add Keys to `.env`:__ Add the following lines to your `.env` file, replacing the placeholders with your actual keys:
 ```bash
