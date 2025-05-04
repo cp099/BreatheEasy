@@ -135,25 +135,37 @@ def prepare_prophet_data_with_regressors(df_master, city_name, regressors):
     return prophet_df, available_regressors
 
 def train_prophet_model_with_regressors(city_data_df, city_name, regressors_to_add):
-    """Instantiates, adds regressors, configures, and trains Prophet model."""
-    # (Keep exact logic from previous version)
+    """Instantiates, adds specified regressors, configures, and trains the Prophet model."""
     if city_data_df is None: raise ValueError("Input city_data_df is None.")
-    log.info(f"Instantiating FINAL Prophet model for {city_name} (Multiplicative, Default Priors)...")
-    model = Prophet(seasonality_mode='multiplicative', changepoint_prior_scale=0.05,
-                    seasonality_prior_scale=10.0, holidays_prior_scale=10.0)
+
+    log.info(f"Instantiating FINAL Prophet model for {city_name} (Linear Growth, Multiplicative Seasonality, Default Priors)...")
+    # Parameters chosen after notebook evaluation (Cell 3B was best) + explicit growth
+    model = Prophet(
+        growth='linear', # Explicitly set to linear (default)
+        seasonality_mode='multiplicative',
+        changepoint_prior_scale=0.05,
+        seasonality_prior_scale=10.0,
+        holidays_prior_scale=10.0
+    )
+
+    # Add Regressors BEFORE fitting
     if regressors_to_add:
          log.info(f"Adding {len(regressors_to_add)} regressors: {regressors_to_add}")
          for regressor in regressors_to_add:
              if regressor in city_data_df.columns: model.add_regressor(regressor)
              else: log.error(f"Attempted add regressor '{regressor}' not in df for {city_name}. Skipping.")
-    else: log.info(f"No regressors to add for {city_name}.")
+    else: log.info(f"No regressors specified or available to add for {city_name}.")
+
+    # Add Holidays
     try: model.add_country_holidays(country_name='IN')
     except Exception as e: log.warning(f"Could not add holidays for {city_name}: {e}")
+
+    # Fit model
     log.info(f"Fitting model with regressors for {city_name}...")
     try:
         model.fit(city_data_df)
         log.info(f"Model fitting complete for {city_name}.")
-        return model
+        return model, city_data_df # Return model and data used (for residual calc)
     except Exception as e:
         log.error(f"Error during model fitting for {city_name}: {e}", exc_info=True)
         raise RuntimeError(f"Error fitting Prophet model for {city_name}: {e}") from e
@@ -174,6 +186,80 @@ def save_model(model, city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
         log.error(f"Error saving model for {city_name}: {e}", exc_info=True)
         raise RuntimeError(f"Error saving model for {city_name}: {e}") from e
 
+def calculate_and_save_residual(model, train_df, city_name, version=MODEL_VERSION, models_dir=MODELS_DIR, days_for_residual=7):
+    """
+    Calculates the residual on the last N days of training data and saves it.
+
+    Args:
+        model (Prophet): The fitted Prophet model.
+        train_df (pd.DataFrame): The data the model was trained on (must include 'ds', 'y').
+        city_name (str): Name of the city.
+        version (str): Model version suffix.
+        models_dir (str): Directory where models/metadata are saved.
+        days_for_residual (int): How many recent days from training data to use.
+
+    Returns:
+        bool: True if residual calculation and saving succeeded, False otherwise.
+    """
+    if model is None or train_df is None or train_df.empty:
+        log.error(f"Cannot calculate residual for {city_name}: Invalid model or training data.")
+        return False
+
+    metadata_filename = f"{city_name}_prophet_metadata_{version}.json"
+    metadata_path = os.path.join(models_dir, metadata_filename)
+    log.info(f"Calculating historical residual for {city_name} (last {days_for_residual} days)...")
+
+    try:
+        # Select last N days of training data (ensure it has necessary columns)
+        if len(train_df) < days_for_residual:
+             log.warning(f"Training data for {city_name} has less than {days_for_residual} days ({len(train_df)}). Using all available.")
+             last_n_days_df = train_df.copy()
+        else:
+             last_n_days_df = train_df.iloc[-days_for_residual:].copy()
+
+        if last_n_days_df.empty:
+             log.error(f"No data points found to calculate residual for {city_name}.")
+             return False
+
+        # Predict on these last N days (model already fitted)
+        # Ensure prediction dataframe has required regressor columns if model uses them
+        required_cols = ['ds'] + list(model.extra_regressors.keys())
+        missing_cols = set(required_cols) - set(last_n_days_df.columns)
+        if missing_cols:
+             log.error(f"Cannot predict for residual calc: training data missing {missing_cols}")
+             return False
+
+        predictions = model.predict(last_n_days_df[required_cols])
+
+        # Merge predictions with actuals
+        comparison_df = pd.merge(last_n_days_df[['ds', 'y']], predictions[['ds', 'yhat']], on='ds', how='inner')
+
+        if comparison_df.empty:
+             log.error(f"Failed to merge predictions with actuals for residual calc for {city_name}.")
+             return False
+
+        # Calculate residual (Actual - Predicted)
+        residuals = comparison_df['y'] - comparison_df['yhat']
+        if residuals.empty:
+            representative_residual = 0.0
+            log.warning(f"No residuals calculated for {city_name}. Setting historical residual to 0.")
+        else:
+            # Use the mean residual instead of the last one
+            representative_residual = residuals.mean()
+            log.info(f"Calculated MEAN historical residual for {city_name}: {representative_residual:.2f}")
+
+       
+        # Save residual to metadata file
+        metadata = {"last_historical_residual": representative_residual}
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        log.info(f"Saved residual metadata to {metadata_path}")
+        return True
+
+    except Exception as e:
+        log.error(f"Error calculating or saving historical residual for {city_name}: {e}", exc_info=True)
+        return False
+    
 # --- Main Execution ---
 def main():
     """Loads data, loops through cities, trains models with weather, saves them."""
@@ -193,13 +279,30 @@ def main():
     failed_cities = []
     for city in TARGET_CITIES:
         log.info(f"\n===== Processing City: {city} =====")
+        prophet_df = None
+        trained_model = None
         try:
+            # Chain the processing steps
             prophet_df, actual_regressors_used = prepare_prophet_data_with_regressors(df_master, city, WEATHER_REGRESSORS)
-            trained_model = train_prophet_model_with_regressors(prophet_df, city, actual_regressors_used)
-            save_model(trained_model, city)
-            successful_cities.append(city)
-        except (ValueError, RuntimeError) as e: log.error(f"Failed processing city {city}: {e}"); failed_cities.append(city)
-        except Exception as e: log.error(f"Unexpected error processing city {city}: {e}", exc_info=True); failed_cities.append(city)
+            # *** Get model AND training data back ***
+            trained_model, train_data_used = train_prophet_model_with_regressors(prophet_df, city, actual_regressors_used)
+            # Save the model file
+            save_model_success = save_model(trained_model, city)
+            # *** NEW: Calculate and save residual metadata ***
+            save_residual_success = calculate_and_save_residual(trained_model, train_data_used, city)
+
+            if save_model_success and save_residual_success:
+                successful_cities.append(city)
+            else:
+                # Log which part failed if needed (save_model/save_residual logs errors internally)
+                failed_cities.append(city)
+
+        except (ValueError, RuntimeError) as e:
+            log.error(f"Failed processing city {city}: {e}")
+            failed_cities.append(city)
+        except Exception as e:
+            log.error(f"Unexpected error processing city {city}: {e}", exc_info=True)
+            failed_cities.append(city)
 
     log.info("\n===== Model Training Summary =====")
     log.info(f"Successfully trained/saved models for: {successful_cities}")
