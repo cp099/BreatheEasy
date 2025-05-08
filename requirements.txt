@@ -34,7 +34,6 @@ PyYAML
 holidays<1.0
 
 # for UI Development
-dash
 dash-bootstrap-components
 dash-core-components
 dash-html-components
