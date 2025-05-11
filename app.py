@@ -10,6 +10,19 @@ from plotly import graph_objects as go
 import traceback
 import numpy as np
 
+
+try:
+    # ... (other backend imports)
+    from src.health_rules.info import AQI_DEFINITION, AQI_SCALE # <-- ADD THIS
+except ImportError as e:
+    # ... (existing dummy function definitions)
+    # Add dummies for the new imports if the real ones fail
+    AQI_DEFINITION = "AQI definition not loaded. This is a placeholder."
+    AQI_SCALE = [
+        {'level': 'Error', 'range': 'N/A', 'color': '#cccccc', 'implications': 'AQI Scale not loaded.'}
+    ]
+    print(f"Warning: Could not import from health_rules.info: {e}")
+
 # --- Load environment variables ---
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
@@ -81,7 +94,31 @@ app.layout = html.Div(className="app-shell", children=[
         html.Div(className="widget-card", id="section-5-pollutant-risks", children=[html.H3("Section 5: Current Pollutant Risks"), html.P("Content for Pollutant Risks...")]), # Item 3 (was Section 3)
 
         # Row 2
-        html.Div(className="widget-card", id="section-2-edu-info", children=[html.H3("Section 2: Educational Info"), html.P("Content for Edu. Info...")]),          # Item 4 (was Section 4)
+        html.Div(className="widget-card", id="section-2-edu-info", children=[
+    html.H3("Section 2: AQI Educational Info"), # Updated title
+    html.Div(className="edu-info-content", children=[ # Wrapper for scrollability and content
+        dcc.Markdown(
+            AQI_DEFINITION, # Imported from health_rules.info
+            className="aqi-definition-markdown"
+            # dangerously_allow_html=False by default, which is safer
+        ),
+        html.Hr(className="edu-info-separator"),
+        html.H4("AQI Categories (CPCB India)", className="aqi-scale-title"),
+        html.Div(className="aqi-scale-container", children=[
+            # This list comprehension creates a Div for each category in AQI_SCALE
+            html.Div(
+                className="aqi-category-card",
+                # Inline style to use the specific color from your AQI_SCALE data
+                style={'borderColor': category['color'], 'backgroundColor': f"{category['color']}20"}, 
+                children=[
+                    html.Strong(f"{category['level']} ", className="aqi-category-level"),
+                    html.Span(f"({category['range']})", className="aqi-category-range"),
+                    html.P(category['implications'], className="aqi-category-implications")
+                ]
+            ) for category in AQI_SCALE # AQI_SCALE imported from health_rules.info
+        ])
+    ])
+]),          # Item 4 (was Section 4)
         html.Div(className="widget-card", id="section-4-aqi-forecast", children=[html.H3("Section 4: AQI Forecast"), html.P("Content for AQI Forecast...")]),       # Item 5 (was Section 5)
         html.Div(className="widget-card", id="section-6-weekly-risks", children=[html.H3("Section 6: Predicted Weekly Risks"), html.P("Content for Weekly Risks...")]),     # Item 6
     ]),
