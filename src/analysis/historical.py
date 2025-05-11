@@ -13,6 +13,8 @@ import pandas as pd
 import os
 import logging # Standard library logging
 import sys # For path manipulation
+import matplotlib
+import seaborn
 
 # --- Setup Project Root Path ---
 # (Keep existing PROJECT_ROOT logic)
@@ -241,7 +243,112 @@ def get_city_aqi_distribution_data(city_name):
 
 
 # --- Example Usage Block ---
-# (Keep existing __main__ block as is)
+# --- Example Usage Block (Adjusted to handle exceptions and add plotting) ---
 if __name__ == "__main__":
-    # ... (test code remains the same) ...
-    pass # Added pass for valid syntax if test code removed/commented
+    # Logging is configured when CONFIG is imported
+    # Ensure necessary plotting libraries are imported if not already at module level
+    try:
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        plotting_available = True
+        # Apply a style for nicer plots
+        sns.set_style("whitegrid")
+    except ImportError:
+        log.warning("Matplotlib or Seaborn not installed. Plotting test will be skipped.")
+        plotting_available = False
+
+    print("\n" + "="*30)
+    print(" Running historical.py Tests ")
+    print("="*30 + "\n")
+
+    # Define output directory for plots (relative to project root)
+    # Ensure PROJECT_ROOT is correctly defined at the top of the file
+    plots_output_dir = os.path.join(PROJECT_ROOT, 'output_plots', 'historical_trends')
+    if plotting_available:
+        os.makedirs(plots_output_dir, exist_ok=True)
+        log.info(f"Plots will be saved to: {plots_output_dir}")
+
+
+    available_cities = [] # Initialize
+    try:
+        # --- Test 1: Load data and get available cities ---
+        print("[Test 1: Get Available Cities]")
+        available_cities = get_available_cities()
+        if available_cities:
+            print(f"Success! Available cities found: {available_cities}")
+        else:
+            print("Failure! Could not retrieve available cities. Check logs.")
+
+        if not available_cities:
+            print("\nSkipping further data-dependent tests as city list could not be obtained.")
+        else:
+            # --- Test 2 & 3 combined for one city example ---
+            test_city_example = available_cities[0]
+            print(f"\n[Test 2 & 3: Sample Data for '{test_city_example}']")
+            print(f"Attempting to get trend data for: '{test_city_example}'")
+            trend_data = get_city_aqi_trend_data(test_city_example)
+            if trend_data is not None: print(f"  Trend Data Head:\n{trend_data.head()}")
+            else: print(f"  Failure retrieving trend data.")
+
+            print(f"Attempting to get distribution data for: '{test_city_example}'")
+            dist_data = get_city_aqi_distribution_data(test_city_example)
+            if dist_data is not None: print(f"  Distribution Data Stats:\n{dist_data.describe()}")
+            else: print(f"  Failure retrieving distribution data.")
+
+            # --- Test 4: Non-existent City ---
+            print("\n[Test 4: Non-existent City]")
+            invalid_city = "Atlantis"
+            print(f"Attempting data for invalid city: '{invalid_city}'")
+            non_existent_trend = get_city_aqi_trend_data(invalid_city)
+            if non_existent_trend is None: print("  Success! Correctly returned None for trend.")
+            else: print("  Failure! Expected None for invalid city trend.")
+            non_existent_dist = get_city_aqi_distribution_data(invalid_city)
+            if non_existent_dist is None: print("  Success! Correctly returned None for distribution.")
+            else: print("  Failure! Expected None for invalid city distribution.")
+
+            # --- Test 5: Caching Check ---
+            print("\n[Test 5: Caching Check]")
+            print(f"Requesting trend data for '{test_city_example}' again (check logs for cache message)...")
+            trend_data_cached = get_city_aqi_trend_data(test_city_example)
+            if trend_data_cached is not None: print(f"  Successfully retrieved data for '{test_city_example}' again.")
+            else: print(f"  Failure! Could not retrieve data for '{test_city_example}' again.")
+
+            # --- Test 6: Plot and Save AQI Trends for All Cities ---
+            if plotting_available:
+                print("\n[Test 6: Plotting and Saving AQI Trends for All Cities]")
+                for city in available_cities:
+                    log.info(f"Processing plot for city: {city}")
+                    print(f"  Generating plot for: {city}...")
+                    city_trend_data = get_city_aqi_trend_data(city)
+
+                    if city_trend_data is not None and not city_trend_data.empty:
+                        try:
+                            plt.figure(figsize=(12, 6))
+                            city_trend_data.plot(title=f"AQI Trend for {city}")
+                            plt.ylabel("AQI Value")
+                            plt.xlabel("Date")
+                            plt.tight_layout()
+                            plot_filename = os.path.join(plots_output_dir, f"{city.replace(' ', '_')}_AQI_Trend.png")
+                            plt.savefig(plot_filename)
+                            plt.close() # Close the figure to free memory
+                            print(f"    Plot saved to: {plot_filename}")
+                        except Exception as plot_e:
+                            log.error(f"Error generating or saving plot for {city}: {plot_e}", exc_info=True)
+                            print(f"    ERROR generating plot for {city}.")
+                    else:
+                        log.warning(f"No trend data available to plot for {city}.")
+                        print(f"    No data to plot for {city}.")
+            else:
+                print("\n[Test 6: Plotting Skipped - Matplotlib/Seaborn not available]")
+
+    except Exception as e:
+        print(f"\nAn unexpected error occurred during the test run: {e}")
+        # Ensure `log` is defined even if initial CONFIG import fails for some reason
+        if 'log' not in locals():
+             logging.basicConfig(level=logging.ERROR)
+             log = logging.getLogger(__name__)
+        log.error("Error in historical.py __main__ block", exc_info=True)
+
+    print("\n" + "="*30)
+    print(" historical.py Tests Finished ")
+    print("="*30 + "\n")
