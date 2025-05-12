@@ -1,59 +1,58 @@
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output, State # State not used yet, but good to have
+from dash.dependencies import Input, Output # State not used yet, but good to have
 import os
 from dotenv import load_dotenv
 import sys
-import pandas as pd 
-import plotly.express as px 
-from plotly import graph_objects as go
+import pandas as pd
+# import plotly.express as px # Not strictly needed if using go.Scatter directly for hist. graph
+import plotly.graph_objects as go
 import traceback
 import numpy as np
 
+# --- Add Project Root to sys.path consistently ---
+# This assumes app.py is in your BREATHEEASY/ project root directory.
+PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
+# --- Import backend functions and variables ---
 try:
-    # ... (other backend imports)
-    from src.health_rules.info import AQI_DEFINITION, AQI_SCALE # <-- ADD THIS
+    from src.api_integration.weather_client import get_current_weather
+    from src.analysis.historical import get_city_aqi_trend_data
+    from src.health_rules.info import AQI_DEFINITION, AQI_SCALE
+    from src.exceptions import APIError
 except ImportError as e:
-    # ... (existing dummy function definitions)
-    # Add dummies for the new imports if the real ones fail
-    AQI_DEFINITION = "AQI definition not loaded. This is a placeholder."
-    AQI_SCALE = [
-        {'level': 'Error', 'range': 'N/A', 'color': '#cccccc', 'implications': 'AQI Scale not loaded.'}
-    ]
-    print(f"Warning: Could not import from health_rules.info: {e}")
+    # This block is crucial for the app to run even if backend modules are missing/have issues.
+    print(f"CRITICAL ERROR importing backend modules: {e}")
+    print("Ensure 'src' directory and all its submodules with __init__.py files are present and correct.")
+    traceback.print_exc() # Print full traceback for import errors
+
+    # Define dummy functions/variables so the app can attempt to load
+    def get_current_weather(city_name):
+        print(f"Using DUMMY get_current_weather for {city_name}")
+        return {"temp_c": "N/A", "condition_icon": None, "condition_text": "N/A", 
+                "humidity": "N/A", "wind_kph": "N/A", "wind_dir": "", 
+                "feelslike_c": "N/A", "pressure_mb": "N/A", "uv_index": "N/A",
+                "error_message": "Backend weather client not loaded"} # Add error_message for clarity
+
+    def get_city_aqi_trend_data(city_name):
+        print(f"Using DUMMY get_city_aqi_trend_data for {city_name}")
+        # Return an empty series or one with minimal data for placeholder
+        return pd.Series(dtype='float64', name="AQI") 
+
+    AQI_DEFINITION = "AQI definition not loaded (dummy). Check imports."
+    AQI_SCALE = [{'level': 'Error', 'range': 'N/A', 'color': '#CCCCCC', 
+                  'implications': 'AQI Scale not loaded (dummy). Check imports.'}]
+    
+    class APIError(Exception): pass # Define a basic APIError if the real one isn't imported
 
 # --- Load environment variables ---
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path)
 else:
-    print("Warning: .env file not found. API calls might fail.")
-
-# --- Add src directory to Python path ---
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
-# sys.path.insert(0, os.path.abspath(os.path.dirname(__file__))) # Only one needed if src is at root
-
-
-# --- Import backend functions ---
-try:
-    from api_integration.weather_client import get_current_weather
-    from analysis.historical import get_city_aqi_trend_data
-    from exceptions import APIError
-except ImportError as e:
-    print(f"Error importing backend modules: {e}. Ensure 'src' is in PYTHONPATH or sys.path is correct.")
-    def get_current_weather(city_name):
-        print(f"Using DUMMY get_current_weather for {city_name}")
-        return {
-            "temp_c": "25", "condition": {"text": "Dummy Condition", "icon": "//cdn.weatherapi.com/weather/64x64/day/113.png"}, # Dummy icon
-            "humidity": "60", "wind_kph": "10", "error": "Backend not loaded (dummy data)"
-        }
-    def get_city_aqi_trend_data(city_name):
-        print(f"Using DUMMY get_city_aqi_trend_data for {city_name}")
-        dates = pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03', '2023-01-04', '2023-01-05'])
-        aqi_values = [50, 55, 60, 52, 58]
-        return pd.Series(data=aqi_values, index=dates, name="AQI")
-    APIError = Exception
+    print("Warning: .env file not found. API calls might fail or use defaults.")
 
 # --- Hardcoded City List for Dropdown ---
 HARDCODED_CITIES = ['Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Hyderabad']
@@ -65,8 +64,7 @@ app.title = "BreatheEasy"
 # --- App Layout ---
 app.layout = html.Div(className="app-shell", children=[
     html.Div(className="page-header", children=[
-        # html.Img(src=app.get_asset_url('logo_placeholder.png'), className="logo-image", alt="BreatheEasy Logo")
-        html.Div("LOGO", className="logo-placeholder") # Using Div placeholder as per screenshot
+        html.Div("LOGO", className="logo-placeholder")
     ]),
 
     html.Div(className="control-bar", children=[
@@ -85,79 +83,75 @@ app.layout = html.Div(className="app-shell", children=[
 
     html.Div(className="main-content-grid", children=[
         # Row 1
-        html.Div(className="widget-card", id="section-1-hist-summary", children=[html.H3("Section 1: Historical Summary"), dcc.Graph(id='historical-aqi-trend-graph',
-                figure={}, # Start with an empty figure
-                config={'responsive': True, 'displayModeBar': False}, 
-                style={'height': '100%', 'width': '100%'})
-                ]), 
-        html.Div(className="widget-card", id="section-3-curr-aqi", children=[html.H3("Section 3: Current AQI"), html.P("Content for Current AQI...")]),              # Item 2 (was Section 2)
-        html.Div(className="widget-card", id="section-5-pollutant-risks", children=[html.H3("Section 5: Current Pollutant Risks"), html.P("Content for Pollutant Risks...")]), # Item 3 (was Section 3)
+        html.Div(className="widget-card", id="section-1-hist-summary", children=[
+            html.H3("Section 1: Historical Summary"),
+            dcc.Graph(
+                id='historical-aqi-trend-graph',
+                figure={}, 
+                config={'responsive': True, 'displayModeBar': False},
+                className='flex-graph-container' # Styled by CSS to grow
+            )
+        ]),
+        html.Div(className="widget-card", id="section-3-curr-aqi", children=[html.H3("Section 3: Current AQI"), html.P("Content for Current AQI...")]),
+        html.Div(className="widget-card", id="section-5-pollutant-risks", children=[html.H3("Section 5: Current Pollutant Risks"), html.P("Content for Pollutant Risks...")]),
 
         # Row 2
         html.Div(className="widget-card", id="section-2-edu-info", children=[
-    html.H3("Section 2: AQI Educational Info"), # Updated title
-    html.Div(className="edu-info-content", children=[ # Wrapper for scrollability and content
-        dcc.Markdown(
-            AQI_DEFINITION, # Imported from health_rules.info
-            className="aqi-definition-markdown"
-            # dangerously_allow_html=False by default, which is safer
-        ),
-        html.Hr(className="edu-info-separator"),
-        html.H4("AQI Categories (CPCB India)", className="aqi-scale-title"),
-        html.Div(className="aqi-scale-container", children=[
-            # This list comprehension creates a Div for each category in AQI_SCALE
-            html.Div(
-                className="aqi-category-card",
-                # Inline style to use the specific color from your AQI_SCALE data
-                style={'borderColor': category['color'], 'backgroundColor': f"{category['color']}20"}, 
-                children=[
-                    html.Strong(f"{category['level']} ", className="aqi-category-level"),
-                    html.Span(f"({category['range']})", className="aqi-category-range"),
-                    html.P(category['implications'], className="aqi-category-implications")
-                ]
-            ) for category in AQI_SCALE # AQI_SCALE imported from health_rules.info
-        ])
-    ])
-]),          # Item 4 (was Section 4)
-        html.Div(className="widget-card", id="section-4-aqi-forecast", children=[html.H3("Section 4: AQI Forecast"), html.P("Content for AQI Forecast...")]),       # Item 5 (was Section 5)
-        html.Div(className="widget-card", id="section-6-weekly-risks", children=[html.H3("Section 6: Predicted Weekly Risks"), html.P("Content for Weekly Risks...")]),     # Item 6
+            html.H3("Section 2: AQI Educational Info"),
+            html.Div(className="edu-info-content", children=[
+                dcc.Markdown(
+                    AQI_DEFINITION,
+                    className="aqi-definition-markdown"
+                ),
+                html.Hr(className="edu-info-separator"),
+                html.H4("AQI Categories (CPCB India)", className="aqi-scale-title"),
+                html.Div(className="aqi-scale-container", children=[
+                    html.Div(
+                        className="aqi-category-card",
+                        style={'borderColor': category['color'], 'backgroundColor': f"{category['color']}20"}, 
+                        children=[
+                            html.Strong(f"{category['level']} ", className="aqi-category-level"),
+                            html.Span(f"({category['range']})", className="aqi-category-range"),
+                            html.P(category['implications'], className="aqi-category-implications")
+                        ]
+                    ) for category in AQI_SCALE
+                ])
+            ])
+        ]),
+        html.Div(className="widget-card", id="section-4-aqi-forecast", children=[html.H3("Section 4: AQI Forecast"), html.P("Content for AQI Forecast...")]),
+        html.Div(className="widget-card", id="section-6-weekly-risks", children=[html.H3("Section 6: Predicted Weekly Risks"), html.P("Content for Weekly Risks...")]),
     ]),
 
     html.Div(className="page-footer", children=[
         html.P("Project Team: Arnav Vidya, Chirag P Patil, Kimaya Anand | School: Delhi Public School Bangalore South"),
-        html.P("Copyright © 2025 BreatheEasy/Delhi Public School Bangalore South. Licensed under MIT License.")
+        html.P("Copyright © 2025 BreatheEasy Project Team. Licensed under MIT License.") # Slightly rephrased copyright
     ])
 ])
 
 # --- Callbacks ---
-# Ensure html from dash is imported: from dash import html
-# Ensure APIError from your exceptions is imported
 
 @app.callback(
     Output('current-weather-display', 'children'),
     [Input('city-dropdown', 'value')]
 )
 def update_current_weather(selected_city):
-    # Helper function to generate placeholder/error weather display
     def get_default_weather_layout(city_name_text="Select a city", error_message=None):
         condition_display_children = ["Condition N/A"]
         condition_style = {}
         if error_message:
             condition_display_children = [error_message]
             condition_style = {'font-style': 'normal', 'color': '#CC0000'}
-
         return [
             html.Div(className="weather-icon-container", children=[
                 html.Img(src="", alt="Weather icon placeholder", className="weather-icon")
             ]),
-            html.Div(className="weather-text-info-expanded", children=[ # Assuming you want to use weather-text-info-expanded consistently
+            html.Div(className="weather-text-info-expanded", children=[
                 html.P(city_name_text, className="weather-city"),
                 html.P("-°C", className="weather-temp"),
                 html.P(condition_display_children, className="weather-condition", style=condition_style),
                 html.Div(className="weather-details-row", children=[
                     html.P("Humidity: - %", className="weather-details"),
                     html.P("Wind: - kph", className="weather-details")
-                    # Add other placeholder details if desired
                 ])
             ])
         ]
@@ -167,28 +161,17 @@ def update_current_weather(selected_city):
 
     try:
         query_city_for_api = f"{selected_city}, India"
-        weather_data = get_current_weather(query_city_for_api) # Backend call
+        weather_data = get_current_weather(query_city_for_api)
 
         if weather_data and isinstance(weather_data, dict) and 'temp_c' in weather_data:
             icon_url_path = weather_data.get('condition_icon')
             condition_text = weather_data.get('condition_text', "Not available")
-
-            icon_url = ""
-            if icon_url_path:
-                icon_url = "https:" + icon_url_path if icon_url_path.startswith("//") else icon_url_path
-            
-            if not condition_text or str(condition_text).strip() == "":
-                condition_text = "Not available"
-
+            icon_url = "https:" + icon_url_path if icon_url_path and icon_url_path.startswith("//") else (icon_url_path or "")
+            if not condition_text or str(condition_text).strip() == "": condition_text = "Not available"
             return [
                 html.Div(className="weather-icon-container", children=[
-                    html.Img(
-                        src=icon_url,
-                        alt=condition_text if condition_text != "Not available" else "Weather icon",
-                        className="weather-icon",
-                        style={'display': 'block' if icon_url else 'none'}
-                    )
-                ]),
+                    html.Img(src=icon_url, alt=condition_text if condition_text != "Not available" else "Weather icon",
+                             className="weather-icon", style={'display': 'block' if icon_url else 'none'})]),
                 html.Div(className="weather-text-info-expanded", children=[
                     html.P(f"{selected_city}", className="weather-city"),
                     html.P(f"{weather_data.get('temp_c', '-')}°C", className="weather-temp"),
@@ -198,29 +181,22 @@ def update_current_weather(selected_city):
                         html.P(f"Wind: {weather_data.get('wind_kph', '-')} kph {weather_data.get('wind_dir', '')}", className="weather-details"),
                         html.P(f"Feels like: {weather_data.get('feelslike_c', '-')}°C", className="weather-details"),
                         html.P(f"Pressure: {weather_data.get('pressure_mb', '-')} mb", className="weather-details"),
-                        html.P(f"UV Index: {weather_data.get('uv_index', '-')}", className="weather-details"),
-                    ])
-                ])
-            ]
+                        html.P(f"UV Index: {weather_data.get('uv_index', '-')}", className="weather-details"),])])]
         else:
-            # Handle cases where API returns data but not the expected structure, or an error within the data
             error_msg = "Weather data not available"
             if weather_data and isinstance(weather_data, dict):
-                if weather_data.get("error_message"): 
-                    error_msg = weather_data.get("error_message")
-                elif weather_data.get("error"): # From WeatherAPI.com error response
-                    error_detail = weather_data.get("error")
-                    error_msg = error_detail.get("message", "Unknown API error") if isinstance(error_detail, dict) else str(error_detail)
+                if weather_data.get("error_message"): error_msg = weather_data.get("error_message")
+                elif weather_data.get("error"):
+                    error_detail = weather_data.get("error"); error_msg = error_detail.get("message", "Unknown API error") if isinstance(error_detail, dict) else str(error_detail)
             return get_default_weather_layout(city_name_text=selected_city, error_message=error_msg)
-
-    except APIError as e: # Your custom API error
-        # Log this error to your file using your logger if set up, e.g., log.error(...)
-        print(f"Handled APIError for {selected_city}: {e}") # Keep a concise print for console during dev
-        return get_default_weather_layout(city_name_text=selected_city, error_message="Service unavailable.")
+    except APIError as e:
+        print(f"Handled APIError for {selected_city}: {e}") # Dev console
+        # log.error(f"APIError for weather in {selected_city}: {e}") # Production logging
+        return get_default_weather_layout(city_name_text=selected_city, error_message="Weather service unavailable.")
     except Exception as e:
-        # Log this error to your file, e.g., log.exception(...)
-        print(f"General error fetching weather for {selected_city}: {e}") # Keep for dev
-        # Consider importing 'traceback' and calling traceback.print_exc() here for dev
+        print(f"General error fetching weather for {selected_city}: {e}") # Dev console
+        traceback.print_exc() # Dev console
+        # log.exception(f"General error for weather in {selected_city}") # Production logging
         return get_default_weather_layout(city_name_text=selected_city, error_message="Error loading weather.")
     
 @app.callback(
@@ -228,103 +204,60 @@ def update_current_weather(selected_city):
     [Input('city-dropdown', 'value')]
 )
 def update_historical_trend_graph(selected_city):
-    # Placeholder figure for "No City Selected" or "No Data"
     def create_placeholder_figure(message_text, height=300):
         fig = go.Figure()
-        fig.update_layout(
-            annotations=[dict(text=message_text, showarrow=False, font=dict(size=14, color="#0A4D68"))],
-            xaxis_visible=False, yaxis_visible=False,
-            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-            height=height
-        )
+        fig.update_layout(annotations=[dict(text=message_text, showarrow=False, font=dict(size=14, color="#0A4D68"))],
+                          xaxis_visible=False, yaxis_visible=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=height)
         return fig
 
-    if not selected_city:
-        return create_placeholder_figure("Select a city to view historical AQI trend")
+    if not selected_city: return create_placeholder_figure("Select a city to view historical AQI trend")
 
     try:
         aqi_trend_series = get_city_aqi_trend_data(selected_city)
-
         if aqi_trend_series is None or aqi_trend_series.empty:
-            # Log this occurrence if you have a logger: log.warning(f"No historical data for {selected_city}")
+            # log.warning(f"No historical data for {selected_city}")
             return create_placeholder_figure(f"No historical data available for {selected_city}")
         
         df_trend = aqi_trend_series.reset_index()
-        if 'Date' not in df_trend.columns or 'AQI' not in df_trend.columns:
-            if len(df_trend.columns) == 2:
-                 df_trend.columns = ['Date', 'AQI']
-            else:
-                # Log this error: log.error(f"Unexpected DataFrame columns for {selected_city}: {df_trend.columns.tolist()}")
-                raise ValueError(f"DataFrame columns not as expected ('Date', 'AQI').")
+        if not ({'Date', 'AQI'}.issubset(df_trend.columns)): # Check if both columns exist
+            if len(df_trend.columns) == 2: df_trend.columns = ['Date', 'AQI']
+            else: raise ValueError(f"DataFrame columns {df_trend.columns.tolist()} not as expected ('Date', 'AQI').")
 
-        # Data Cleaning and Validation
         df_trend['Date'] = pd.to_datetime(df_trend['Date'], errors='coerce')
         df_trend['AQI'] = pd.to_numeric(df_trend['AQI'], errors='coerce')
-        
-        if np.isinf(df_trend['AQI']).any():
-            # Log this: log.warning(f"Infinity values found in AQI for {selected_city}. Replacing with NaN.")
-            df_trend.replace([np.inf, -np.inf], np.nan, inplace=True)
-        
+        if np.isinf(df_trend['AQI']).any(): df_trend.replace([np.inf, -np.inf], np.nan, inplace=True)
         df_trend.dropna(subset=['Date', 'AQI'], inplace=True)
         df_trend = df_trend.sort_values(by='Date').reset_index(drop=True)
         
         if df_trend.empty:
-            # Log this: log.warning(f"Data became empty after cleaning for {selected_city}.")
+            # log.warning(f"Data empty after cleaning for {selected_city}")
             return create_placeholder_figure(f"No valid data after cleaning for {selected_city}")
 
-        actual_aqi_min = df_trend['AQI'].min()
-        actual_aqi_max = df_trend['AQI'].max()
+        actual_aqi_min, actual_aqi_max = df_trend['AQI'].min(), df_trend['AQI'].max()
+        x_values_for_plot, y_values_for_plot = df_trend['Date'].tolist(), df_trend['AQI'].tolist()
 
-        x_values_for_plot = df_trend['Date'].tolist()
-        y_values_for_plot = df_trend['AQI'].tolist()
-
-        fig = go.Figure(data=[
-            go.Scatter(
-                x=x_values_for_plot,
-                y=y_values_for_plot,
-                mode='lines',
-                name='AQI Trend', # This name appears if you have a legend enabled
-                line_shape='linear' # Default for 'lines', but explicit
-            )
-        ])
-
-        # Determine y-axis range with a buffer, ensuring min is not below 0
-        yaxis_buffer = 0.1 * (actual_aqi_max - actual_aqi_min) if (actual_aqi_max - actual_aqi_min) > 0 else 10
-        yaxis_min_range = max(0, actual_aqi_min - yaxis_buffer)
-        yaxis_max_range = actual_aqi_max + yaxis_buffer
+        fig = go.Figure(data=[go.Scatter(x=x_values_for_plot, y=y_values_for_plot, mode='lines', name='AQI Trend', line_shape='linear')])
         
-        # Consistent title for the graph (the H3 in the widget card serves as "Section X: Title")
+        yaxis_buffer = 0.1 * (actual_aqi_max - actual_aqi_min) if (actual_aqi_max - actual_aqi_min) > 0 else 10
+        yaxis_min_range, yaxis_max_range = max(0, actual_aqi_min - yaxis_buffer), actual_aqi_max + yaxis_buffer
+        
         graph_title = f"AQI Trend for {selected_city}" 
 
-        fig.update_layout(
-            title_text=graph_title,
-            title_x=0.5, # Center title
-            title_font_size=16, # Slightly smaller if H3 is main title
-            height=400,
-            xaxis_title="Date",
-            yaxis_title="AQI Value",
-            yaxis_range=[yaxis_min_range, yaxis_max_range],
-            margin=dict(l=60, r=30, t=60, b=60), # Left, Right, Top, Bottom margins
-            plot_bgcolor='rgba(255,255,255,0.9)', # Slightly opaque white plot area
-            paper_bgcolor='rgba(0,0,0,0)',       # Transparent paper to blend with widget
-            font_color="#0A4D68"                 # Consistent font color
-        )
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue')
-        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue')
-        
-        fig.update_traces(
-            line=dict(color='#007bff', width=1.5), # A standard blue color
-            hovertemplate="<b>Date</b>: %{x|%Y-%m-%d}<br><b>AQI</b>: %{y:.0f}<extra></extra>" # Format AQI as integer
-        )
+        fig.update_layout(title_text=graph_title, title_x=0.5, title_font_size=14, # Reduced title font slightly
+                          height=380, # Adjusted height to better fit typical widget card after H3
+                          xaxis_title="Date", yaxis_title="AQI Value", yaxis_range=[yaxis_min_range, yaxis_max_range],
+                          margin=dict(l=50, r=20, t=40, b=40), # Adjusted margins
+                          plot_bgcolor='rgba(255,255,255,0.8)', paper_bgcolor='rgba(0,0,0,0)', font_color="#0A4D68")
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue', tickfont_size=10) # Smaller tick font
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue', tickfont_size=10) # Smaller tick font
+        fig.update_traces(line=dict(color='#007bff', width=1.5), hovertemplate="<b>Date</b>: %{x|%Y-%m-%d}<br><b>AQI</b>: %{y:.0f}<extra></extra>")
         
         return fig
-
     except Exception as e:
-        # Use your logging system here, e.g., log.exception(f"Error generating historical trend graph for {selected_city}")
-        print(f"ERROR IN HISTORICAL TREND CALLBACK for {selected_city}:") # Keep for dev console
-        traceback.print_exc() # Keep for dev console to see traceback
-        return create_placeholder_figure(f"Error displaying trend for {selected_city}", height=400)
-
+        print(f"ERROR IN HISTORICAL TREND CALLBACK for {selected_city}:") # Dev console
+        traceback.print_exc() # Dev console
+        # log.exception(f"Error generating historical trend graph for {selected_city}") # Production
+        return create_placeholder_figure(f"Error displaying trend for {selected_city}", height=380)
 
 # --- Run the App ---
 if __name__ == '__main__':

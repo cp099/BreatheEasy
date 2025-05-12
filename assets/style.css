@@ -3,8 +3,8 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
     margin: 0;
     padding: 0;
-    background: linear-gradient(135deg, #E6F7FF 0%, #D0F0FF 100%); /* Light blue gradient */
-    color: #0A4D68; /* Deep calm teal/blue for primary text */
+    background: linear-gradient(135deg, #E6F7FF 0%, #D0F0FF 100%);
+    color: #0A4D68;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -21,14 +21,14 @@ body {
     flex-grow: 1;
 }
 
-/* Page Header - Centered Logo with Box Style */
+/* Page Header */
 .page-header {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 15px 20px; /* Consistent padding */
+    padding: 15px 20px;
     margin-bottom: 20px;
-    background-color: rgba(255, 255, 255, 0.6); /* Glassmorphism like control-bar */
+    background-color: rgba(255, 255, 255, 0.6);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border-radius: 12px;
@@ -40,11 +40,11 @@ body {
     width: 150px;
     height: 70px;
     background-color: rgba(0, 169, 255, 0.2);
-    border: 2px dashed #00A9FF; /* Made dashed border more prominent */
+    border: 2px dashed #00A9FF;
     display: flex;
     justify-content: center;
     align-items: center;
-    color: #0077B6; /* Darker blue for text */
+    color: #0077B6;
     font-weight: bold;
     font-size: 1.2em;
     border-radius: 8px;
@@ -55,11 +55,11 @@ body {
     width: auto;
 }
 
-/* Control Bar - Dropdown and Current Weather - Side by Side */
+/* Control Bar */
 .control-bar {
     display: flex;
     justify-content: space-between;
-    align-items: center; /* Vertically center items in the bar */
+    align-items: center;
     gap: 20px;
     padding: 15px 20px;
     margin-bottom: 30px;
@@ -74,17 +74,16 @@ body {
 }
 
 .city-dropdown-container {
-    flex: 0 1 300px; /* flex-grow:0, flex-shrink:1, flex-basis:300px */
-    min-width: 200px; /* Ensure it doesn't get too small */
-    position: relative;
-    /* z-index: 50; /* This z-index might be redundant if .control-bar has z-index: 10 and .Select-menu-outer has higher */
+    flex: 0 1 300px;
+    min-width: 200px;
+    position: relative; /* Important for .Select-menu-outer positioning */
 }
 
 .city-dropdown .Select-control {
     background-color: rgba(255, 255, 255, 0.3) !important;
     border: 1px solid rgba(0, 169, 255, 0.4) !important;
     border-radius: 8px !important;
-    box-shadow: none !important; /* Remove default Dash shadow if any */
+    box-shadow: none !important;
 }
 .city-dropdown .Select-value-label, .city-dropdown .Select-placeholder {
     color: #0A4D68 !important;
@@ -100,7 +99,7 @@ body {
 .city-dropdown .Select-option {
     color: #0A4D68 !important;
     background-color: transparent !important;
-    padding: 8px 12px !important; /* Ensure options have some padding */
+    padding: 8px 12px !important;
 }
 .city-dropdown .Select-option.is-focused {
     background-color: rgba(0, 169, 255, 0.3) !important;
@@ -109,6 +108,7 @@ body {
     border-top-color: #0A4D68 !important;
 }
 
+/* Current Weather Display */
 .current-weather-display {
     flex: 1 1 auto; 
     display: flex;
@@ -126,16 +126,11 @@ body {
     width: 48px; 
     height: 48px;
     display: block;
-    background-color: rgba(0,0,0,0.05);
+    background-color: rgba(0,0,0,0.05); /* Placeholder bg if icon fails */
     border-radius: 5px;
 }
 
-.weather-text-info { /* General container if used, might be superseded by -expanded */
-    flex-grow: 1;
-    text-align: left;
-}
-
-.weather-text-info-expanded {
+.weather-text-info-expanded { /* Main container for weather text */
     display: flex;
     flex-direction: column; 
     flex-grow: 1;
@@ -158,7 +153,6 @@ body {
     margin-bottom: 1px; 
     line-height: 1.1; 
 }
-
 .weather-text-info-expanded > .weather-condition {
     font-size: 0.9em; 
     font-style: italic;
@@ -177,14 +171,12 @@ body {
     align-items: baseline;
     margin-top: 0px; 
 }
-
 .weather-text-info-expanded .weather-details {
     font-size: 0.8em; 
     color: #088395;
     margin: 0;
     line-height: 1.2;
 }
-
 .weather-text-info-expanded .weather-details_small {
     font-size: 0.7em;
     color: #527080;
@@ -192,49 +184,16 @@ body {
     line-height: 1.2;
 }
 
-/* Main Content Area - Grid for Widgets */
+/* Main Content Grid */
 .main-content-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr); 
     gap: 25px;
     padding: 10px 0;
-    flex-grow: 1;
+    flex-grow: 1; /* Allows grid to take up remaining vertical space */
 }
 
-/* Responsive adjustments for the grid */
-@media (max-width: 1200px) { 
-    .main-content-grid {
-        grid-template-columns: repeat(2, 1fr); 
-    }
-}
-@media (max-width: 768px) {
-    .control-bar {
-        flex-direction: column;
-        align-items: stretch;
-        /* position: relative; /* Already defined above */
-        /* z-index: 10; /* Already defined above */
-    }
-    .city-dropdown-container {
-        flex-basis: auto; 
-        margin-bottom: 15px;
-        /* position: relative; /* Already defined above */
-        /* z-index: 50; /* Already defined above, might be redundant */
-    }
-    .current-weather-display {
-        justify-content: center; 
-    }
-    .weather-text-info, .weather-text-info-expanded { /* Target both if -expanded is primary */
-        align-items: center; 
-    }
-    .weather-secondary-info { /* This class might be obsolete if .weather-details-row is used */
-        justify-content: center; 
-    }
-    .main-content-grid { /* Add grid adjustment for smaller screens */
-        grid-template-columns: 1fr; 
-    }
-}
-
-
+/* Widget Card General Styling */
 .widget-card {
     background-color: rgba(255, 255, 255, 0.75); 
     backdrop-filter: blur(12px); 
@@ -243,25 +202,13 @@ body {
     padding: 20px 25px; 
     box-shadow: 0 8px 30px rgba(0, 70, 110, 0.12); 
     border: 1px solid rgba(255, 255, 255, 0.4);
-    display: flex;
-    flex-direction: column;
-    min-height: 430px; /* Consistent minimum height for all widgets */
+    display: flex; /* Key for internal layout */
+    flex-direction: column; /* Stack H3 and graph/content */
+    min-height: 430px; 
     position: relative; 
-    z-index: 1; /* Lower than dropdown menu */
+    z-index: 1; 
+    overflow: hidden; /* Prevents blurred backdrop from spilling, might help with child layering */
 }
-
-/* Specific height for graph widget card if needed to ensure graph fits */
-#section-1-hist-summary.widget-card {
-    /* min-height: 430px; /* Example if graph needs more than default min-height */
-    /* Or you can let the dcc.Graph with its Plotly height dictate this card's height */
-}
-
-/* Ensure dcc.Graph component itself and its container can expand */
-#historical-aqi-trend-graph, #historical-aqi-trend-graph > div {
-    height: 100% !important; /* Try to force graph to fill available space in parent */
-    width: 100% !important;
-}
-
 
 .widget-card h3 {
     margin-top: 0;
@@ -270,94 +217,80 @@ body {
     font-size: 1.25em; 
     font-weight: 600; 
     text-align: center;
+    flex-shrink: 0; /* Prevent H3 from shrinking if content below wants more space */
+    position: relative; /* Ensure H3 is in the normal flow and can have z-index if needed, though not used here */
+    z-index: 2; /* Tentatively make H3 slightly higher than a default graph z-index if graph had one (it doesn't by default) */
+                 /* More importantly, this establishes a stacking context for H3 if it ever needed to overlap for some reason. */
+                 /* For just preventing overlap BY the graph, this is not strictly needed if graph isn't positioned absolutely. */
 }
+
+/* Styling for the dcc.Graph container in Section 1 */
+.flex-graph-container {
+    flex-grow: 1;  /* Allows the graph container to take remaining vertical space */
+    min-height: 0; /* Essential for flex items to shrink properly if needed */
+    width: 100%;   /* Ensure it takes full width of the card */
+    position: relative; /* Helps contain absolutely positioned elements within Plotly if any */
+    /* background-color: lightcoral; */ /* DEBUG: To see the graph container's bounds */
+}
+
+/* Force the actual Plotly chart div (inside dcc.Graph) to also take full height */
+/* This might be needed if the inner Plotly div isn't expanding. */
+.flex-graph-container > .js-plotly-plot,
+.flex-graph-container > .plotly > .main-svg {
+    height: 100% !important;
+    width: 100% !important;
+}
+
 
 /* Styling for Section 2: Educational Info Widget */
-#section-2-edu-info .edu-info-content { /* Wrapper for Section 2 content */
-    max-height: 350px; /* Max height before scrolling kicks in for THIS widget. */
-                       /* Ensure .widget-card min-height is sufficient or this widget has its own height/min-height */
-    overflow-y: auto;  /* Enable vertical scrollbar if content exceeds max-height */
-    padding-right: 5px; /* Small padding to prevent scrollbar from overlapping content edge */
-    flex-grow: 1; /* Allow this content area to try and fill the card if card is taller */
+#section-2-edu-info .edu-info-content {
+    max-height: 350px; 
+    overflow-y: auto;  
+    padding-right: 5px; 
+    flex-grow: 1; 
+    /* background-color: lightblue; */ /* DEBUG: To see this container's bounds */
 }
 
-/* Style for the AQI definition markdown */
 .aqi-definition-markdown {
     font-size: 0.9em;
     line-height: 1.5;
     margin-bottom: 15px;
     color: #2c3e50; 
 }
-.aqi-definition-markdown p {
-    margin-bottom: 0.5em; 
-}
-
-.edu-info-separator {
-    border: none;
-    border-top: 1px solid rgba(10, 77, 104, 0.2); 
-    margin: 15px 0;
-}
-
-.aqi-scale-title {
-    font-size: 1.1em;
-    color: #0077B6; 
-    margin-bottom: 10px;
-    text-align: center;
-}
-
-.aqi-scale-container {
-    display: flex;
-    flex-direction: column;
-    gap: 10px; 
-}
-
+.aqi-definition-markdown p { margin-bottom: 0.5em; }
+.edu-info-separator { border: none; border-top: 1px solid rgba(10, 77, 104, 0.2); margin: 15px 0; }
+.aqi-scale-title { font-size: 1.1em; color: #0077B6; margin-bottom: 10px; text-align: center; }
+.aqi-scale-container { display: flex; flex-direction: column; gap: 10px; }
 .aqi-category-card {
     padding: 10px 15px;
     border-left-width: 5px; 
     border-left-style: solid;
-    /* borderColor and backgroundColor are set inline in app.py */
     border-radius: 6px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
 }
+.aqi-category-level { font-weight: bold; font-size: 1.05em; display: block; margin-bottom: 3px; }
+.aqi-category-range { font-size: 0.85em; color: #334155; display: block; margin-bottom: 5px; }
+.aqi-category-implications { font-size: 0.85em; line-height: 1.4; color: #475569; }
 
-.aqi-category-level {
-    font-weight: bold;
-    font-size: 1.05em;
-    display: block; 
-    margin-bottom: 3px;
-}
+/* Custom Scrollbar for Section 2 */
+#section-2-edu-info .edu-info-content::-webkit-scrollbar { width: 8px; }
+#section-2-edu-info .edu-info-content::-webkit-scrollbar-track { background: rgba(230, 247, 255, 0.5); border-radius: 4px; }
+#section-2-edu-info .edu-info-content::-webkit-scrollbar-thumb { background-color: rgba(0, 169, 255, 0.6); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.3); }
+#section-2-edu-info .edu-info-content::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 169, 255, 0.8); }
 
-.aqi-category-range {
-    font-size: 0.85em;
-    color: #334155; 
-    /* margin-left: 5px; /* Removed, as level is block */
-    display: block; 
-    margin-bottom: 5px;
-}
 
-.aqi-category-implications {
-    font-size: 0.85em;
-    line-height: 1.4;
-    color: #475569; 
+/* Responsive adjustments */
+@media (max-width: 1200px) { 
+    .main-content-grid { grid-template-columns: repeat(2, 1fr); }
 }
-
-/* Custom Scrollbar styling for Section 2 (Webkit browsers) */
-#section-2-edu-info .edu-info-content::-webkit-scrollbar {
-    width: 8px;
+@media (max-width: 768px) {
+    .control-bar { flex-direction: column; align-items: stretch; }
+    .city-dropdown-container { flex-basis: auto; margin-bottom: 15px; }
+    .current-weather-display { justify-content: center; }
+    .weather-text-info-expanded { align-items: center; }
+    /* Removed .weather-secondary-info as it's not used */
+    .main-content-grid { grid-template-columns: 1fr; }
 }
-#section-2-edu-info .edu-info-content::-webkit-scrollbar-track {
-    background: rgba(230, 247, 255, 0.5); /* Lighter track to blend with widget */
-    border-radius: 4px;
-}
-#section-2-edu-info .edu-info-content::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 169, 255, 0.6); /* Accent color for scrollbar thumb */
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.3); /* Subtle border for thumb */
-}
-#section-2-edu-info .edu-info-content::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 169, 255, 0.8);
-}
-
 
 /* Footer */
 .page-footer {
@@ -371,7 +304,3 @@ body {
     font-size: 0.85em;
     color: #0A4D68;
 }
-
-/* Removed .graph-container class as it wasn't being used in app.py */
-/* If you had specific styling for #historical-aqi-trend-graph's parent div,
-   it would need to be applied to the .widget-card with id #section-1-hist-summary */
