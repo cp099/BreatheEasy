@@ -292,6 +292,108 @@ body {
     .main-content-grid { grid-template-columns: 1fr; }
 }
 
+/* --- STYLES for Section 3: Current AQI SVG Gauge - ADJUSTED FOR LARGER SIZE --- */
+#current-aqi-details-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; 
+    width: 100%;
+    height: 100%; 
+    padding: 5px 10px; 
+    box-sizing: border-box;
+}
+
+.aqi-gauge-wrapper { 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; 
+    gap: 10px; 
+    width: 100%;
+}
+
+.aqi-city-name-highlight {
+    font-size: 1.7em; 
+    font-weight: 600;
+    color: #00629B; 
+    margin: 0 0 5px 0; 
+    text-align: center;
+}
+
+.aqi-gauge-svg-container { 
+    width: 280px;  /* INCREASED from 180px - Should match SVG viewbox_size from app.py */
+    height: 170px; /* INCREASED from 100px - Adjusted for larger arc, approx viewbox_size * 0.6 for semi-circle */
+    margin-bottom: 10px; /* Adjusted space below gauge */
+    position: relative; 
+}
+
+.aqi-svg-gauge { 
+    width: 100%;
+    height: 100%;
+    display: block; 
+}
+
+.aqi-svg-gauge path {
+    fill: none; 
+    stroke-linecap: round; 
+    transition: stroke 0.3s ease-in-out; 
+}
+
+.aqi-gauge-track {
+    stroke: #E9ECEF; 
+    /* stroke-width is set inline in app.py (e.g., 20) */
+}
+
+.aqi-gauge-value {
+    /* stroke color and stroke-width are set inline in app.py */
+}
+
+.aqi-svg-gauge .aqi-gauge-value-text {
+    font-size: 4.5em; 
+    font-weight: 700; 
+    fill: #0A4D68;    
+    text-anchor: middle; 
+    dominant-baseline: central; 
+}
+
+.aqi-svg-gauge .aqi-gauge-level-text {
+    font-size: 1.3em; 
+    font-weight: 500;
+    fill: #34495E;    
+    text-anchor: middle;
+    dominant-baseline: central; 
+}
+
+.aqi-obs-time-gauge { 
+    font-size: 0.95em; 
+    color: #526777;
+    margin-top: 5px; 
+    text-align: center;
+}
+
+/* Styling for error messages within the current AQI widget */
+.current-aqi-error-container { 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 20px;
+    text-align: center;
+}
+
+.aqi-error-message { 
+    color: #D32F2F; 
+    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 1em;
+}
+.aqi-error-detail { 
+    color: #D32F2F;
+    font-size: 0.9em;
+}
+
 /* Footer */
 .page-footer {
     text-align: center;

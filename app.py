@@ -9,6 +9,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import traceback
 import numpy as np
+import math
+import dash_svg
 
 # --- Add Project Root to sys.path consistently ---
 # This assumes app.py is in your BREATHEEASY/ project root directory.
@@ -22,6 +24,8 @@ try:
     from src.analysis.historical import get_city_aqi_trend_data
     from src.health_rules.info import AQI_DEFINITION, AQI_SCALE
     from src.exceptions import APIError
+    from src.api_integration.client import get_current_aqi_for_city
+    from src.health_rules.info import get_aqi_info 
 except ImportError as e:
     # This block is crucial for the app to run even if backend modules are missing/have issues.
     print(f"CRITICAL ERROR importing backend modules: {e}")
@@ -40,12 +44,32 @@ except ImportError as e:
         print(f"Using DUMMY get_city_aqi_trend_data for {city_name}")
         # Return an empty series or one with minimal data for placeholder
         return pd.Series(dtype='float64', name="AQI") 
+    
+    def get_current_aqi_for_city(city_name):
+        print(f"Using DUMMY get_current_aqi_for_city for {city_name}")
+        # Simulate a successful call and an "Unknown station" or error
+        if city_name == "Delhi, India": # Ensure you use the suffixed name if testing dummy
+            return {'city': 'Delhi', 'aqi': 55, 'station': 'Dummy Station, Delhi', 'time': '2023-10-27 10:00:00'}
+        elif city_name == "Mumbai, India":
+            return {'city': 'Mumbai', 'aqi': 155, 'station': 'Dummy Station, Mumbai', 'time': '2023-10-27 10:05:00'}
+        else:
+            return {'city': city_name.split(',')[0], 'aqi': None, 'station': 'Unknown station', 'time': None, 'error': 'Station not found or API error'}
+
+    def get_aqi_info(aqi_value):
+        print(f"Using DUMMY get_aqi_info for AQI: {aqi_value}")
+        if aqi_value is None: return {'level': 'N/A', 'range': '-', 'color': '#DDDDDD', 'implications': 'AQI value not available.'}
+        if aqi_value <= 50: return {'level': 'Good', 'range': '0-50', 'color': '#A8E05F', 'implications': 'Minimal impact.'} # Greenish
+        if aqi_value <= 100: return {'level': 'Satisfactory', 'range': '51-100', 'color': '#D4E46A', 'implications': 'Minor breathing discomfort.'} # Lighter Green/Yellow
+        if aqi_value <= 200: return {'level': 'Moderate', 'range': '101-200', 'color': '#FDD74B', 'implications': 'Breathing discomfort.'} # Yellow
+        return {'level': 'Poor', 'range': '201+', 'color': '#FFA500', 'implications': 'Significant breathing discomfort.'} # Orange (simplified dummy)
 
     AQI_DEFINITION = "AQI definition not loaded (dummy). Check imports."
     AQI_SCALE = [{'level': 'Error', 'range': 'N/A', 'color': '#CCCCCC', 
                   'implications': 'AQI Scale not loaded (dummy). Check imports.'}]
     
     class APIError(Exception): pass # Define a basic APIError if the real one isn't imported
+
+
 
 # --- Load environment variables ---
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -92,7 +116,10 @@ app.layout = html.Div(className="app-shell", children=[
                 className='flex-graph-container' # Styled by CSS to grow
             )
         ]),
-        html.Div(className="widget-card", id="section-3-curr-aqi", children=[html.H3("Section 3: Current AQI"), html.P("Content for Current AQI...")]),
+       html.Div(className="widget-card", id="section-3-curr-aqi", children=[
+            html.H3("Section 3: Current AQI"),
+            html.Div(id='current-aqi-details-content', className='current-aqi-widget-content') # This Div will be populated by the callback
+        ]),
         html.Div(className="widget-card", id="section-5-pollutant-risks", children=[html.H3("Section 5: Current Pollutant Risks"), html.P("Content for Pollutant Risks...")]),
 
         # Row 2
@@ -258,6 +285,111 @@ def update_historical_trend_graph(selected_city):
         traceback.print_exc() # Dev console
         # log.exception(f"Error generating historical trend graph for {selected_city}") # Production
         return create_placeholder_figure(f"Error displaying trend for {selected_city}", height=380)
+    
+# --- HELPER FUNCTION FOR SVG ARC (Keep this definition in your app.py, typically above callbacks) ---
+def describe_arc(x, y, radius, start_angle_deg, end_angle_deg):
+    start_rad = math.radians(start_angle_deg)
+    end_rad = math.radians(end_angle_deg)
+    start_x = x + radius * math.cos(start_rad)
+    start_y = y + radius * math.sin(start_rad)
+    end_x = x + radius * math.cos(end_rad)
+    end_y = y + radius * math.sin(end_rad)
+    angle_diff = end_angle_deg - start_angle_deg
+    if angle_diff < 0: angle_diff += 360
+    large_arc_flag = "1" if angle_diff > 180 else "0"
+    sweep_flag = "1"
+    d = f"M {start_x} {start_y} A {radius} {radius} 0 {large_arc_flag} {sweep_flag} {end_x} {end_y}"
+    return d
+
+@app.callback(
+    Output('current-aqi-details-content', 'children'),
+    [Input('city-dropdown', 'value')]
+)
+def update_current_aqi_details(selected_city): # selected_city is "Delhi", "Mumbai", etc.
+    if not selected_city:
+        return html.P("Select a city to view current AQI.", style={'textAlign': 'center', 'marginTop': '20px'})
+
+    query_city_for_api = f"{selected_city}, India" 
+    
+    try:
+        aqi_data = get_current_aqi_for_city(query_city_for_api)
+
+        if not aqi_data or aqi_data.get('aqi') is None or 'error' in aqi_data:
+            error_message = "Data unavailable" 
+            if isinstance(aqi_data, dict) and 'error' in aqi_data:
+                error_message = aqi_data['error']
+            if isinstance(aqi_data, dict) and aqi_data.get('station') == "Unknown station" and "not found" in error_message.lower():
+                 error_message = f"No AQI monitoring station found for {selected_city} via AQICN."
+            
+            return html.Div([
+                html.P(f"Could not retrieve AQI for {selected_city}.", className="aqi-error-message"),
+                html.P(error_message, className="aqi-error-detail")
+            ], className="current-aqi-error-container")
+
+        aqi_value = aqi_data.get('aqi')
+        obs_time_str = aqi_data.get('time', 'N/A')
+        
+        category_info = get_aqi_info(aqi_value) 
+        aqi_level = category_info.get('level', 'N/A')
+        aqi_color = category_info.get('color', '#DDDDDD')
+        
+        formatted_time = obs_time_str
+        if obs_time_str and isinstance(obs_time_str, str) and obs_time_str != 'N/A':
+            try:
+                dt_obj = pd.to_datetime(obs_time_str) 
+                formatted_time = dt_obj.strftime('%I:%M %p, %b %d')
+            except ValueError:
+                if len(obs_time_str) > 30: formatted_time = "Time N/A" 
+                else: formatted_time = obs_time_str
+        elif hasattr(obs_time_str, 'strftime'):
+             formatted_time = obs_time_str.strftime('%I:%M %p, %b %d')
+        else:
+            formatted_time = str(obs_time_str) if obs_time_str != 'N/A' else "Time N/A"
+
+        # --- SVG Gauge Parameters - ADJUSTED FOR LARGER SIZE ---
+        max_aqi_on_scale = 500.0
+        current_aqi_clamped = max(0, min(float(aqi_value), max_aqi_on_scale)) 
+        percentage = current_aqi_clamped / max_aqi_on_scale
+        
+        gauge_start_angle_deg = -225 
+        gauge_total_sweep_deg = 270 
+        value_end_angle_deg = gauge_start_angle_deg + (percentage * gauge_total_sweep_deg)
+
+        # Increase these values significantly
+        viewbox_size = 280 # Increased from 220
+        center_xy = viewbox_size / 2
+        radius = 115   # Increased from 90 (radius should be < center_xy - stroke_width/2)
+        stroke_width = 22 # Increased from 20
+
+        background_arc_path = describe_arc(center_xy, center_xy, radius, gauge_start_angle_deg, gauge_start_angle_deg + gauge_total_sweep_deg)
+        foreground_arc_path = describe_arc(center_xy, center_xy, radius, gauge_start_angle_deg, value_end_angle_deg)
+        
+        return html.Div(className="aqi-gauge-wrapper", children=[
+            html.H4(selected_city, className="aqi-city-name-highlight"),
+            html.Div(className="aqi-gauge-svg-container", children=[
+                dash_svg.Svg(viewBox=f"0 0 {viewbox_size} {viewbox_size}", className="aqi-svg-gauge", children=[
+                    dash_svg.Path(d=background_arc_path, className="aqi-gauge-track", style={'strokeWidth': stroke_width}),
+                    dash_svg.Path(d=foreground_arc_path, className="aqi-gauge-value", 
+                                  style={'stroke': aqi_color, 'strokeWidth': stroke_width}),
+                    # Adjust y positions slightly for better centering with larger text/gauge
+                    dash_svg.Text(f"{aqi_value}", x="50%", y="44%", dy=".1em", className="aqi-gauge-value-text"), 
+                    dash_svg.Text(aqi_level, x="50%", y="64%", dy=".1em", className="aqi-gauge-level-text")  
+                ])
+            ]),
+            html.P(f"Last Updated: {formatted_time}", className="aqi-obs-time-gauge")
+        ])
+
+    except APIError as e:
+        print(f"APIError fetching current AQI for {query_city_for_api}: {e}") # For dev
+        return html.Div(className="current-aqi-error-container", children=[
+            html.P(f"Service error retrieving AQI for {selected_city}.", className="aqi-error-message")
+        ])
+    except Exception as e:
+        print(f"General error updating current AQI for {query_city_for_api}: {e}") # For dev
+        traceback.print_exc()
+        return html.Div(className="current-aqi-error-container", children=[
+            html.P(f"Error loading AQI data for {selected_city}.", className="aqi-error-message")
+        ])
 
 # --- Run the App ---
 if __name__ == '__main__':
