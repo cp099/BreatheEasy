@@ -394,6 +394,60 @@ body {
     font-size: 0.9em;
 }
 
+/* Styling for Section 4: AQI Forecast Widget */
+.forecast-widget-content {
+    padding-top: 10px; 
+    width: 100%;
+    overflow-x: auto; /* Allow horizontal scroll if table is too wide */
+    max-height: 320px; /* Max height for the table area before scroll */
+    overflow-y: auto;  /* Vertical scroll if many days are forecasted */
+}
+
+.aqi-forecast-table {
+    width: 100%;
+    border-collapse: collapse; 
+    font-size: 0.9em;
+}
+
+.aqi-forecast-table th, .aqi-forecast-table td {
+    border: 1px solid rgba(10, 77, 104, 0.2); 
+    padding: 8px 12px; /* Increased padding slightly */
+    text-align: left;
+    vertical-align: middle;
+}
+
+.aqi-forecast-table th {
+    background-color: rgba(0, 169, 255, 0.15); /* Slightly more vibrant header */
+    color: #005A8C; /* Darker blue for header text */
+    font-weight: 600;
+    position: sticky; /* Make header sticky if table scrolls vertically */
+    top: 0;
+    z-index: 2; /* Ensure header stays above scrolling content */
+}
+
+.aqi-forecast-table tr:nth-child(even) td { 
+    background-color: rgba(230, 247, 255, 0.4); 
+}
+.aqi-forecast-table tr:hover td {
+    background-color: rgba(0, 169, 255, 0.1); /* Hover effect for rows */
+}
+
+.aqi-forecast-table td:nth-child(1) { /* Date column */
+    min-width: 100px; /* Ensure date column has enough space */
+}
+.aqi-forecast-table td:nth-child(2) { /* Predicted AQI column */
+    text-align: center;
+    font-weight: 500;
+    min-width: 80px;
+}
+
+.forecast-error-message {
+    color: #D32F2F;
+    font-size: 0.9em;
+    text-align: center;
+    padding: 20px;
+}
+
 /* Footer */
 .page-footer {
     text-align: center;

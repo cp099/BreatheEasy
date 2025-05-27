@@ -26,6 +26,8 @@ try:
     from src.exceptions import APIError
     from src.api_integration.client import get_current_aqi_for_city
     from src.health_rules.info import get_aqi_info 
+    from src.modeling.predictor import generate_forecast, format_forecast_for_ui
+    from src.exceptions import APIError, ModelFileNotFoundError
 except ImportError as e:
     # This block is crucial for the app to run even if backend modules are missing/have issues.
     print(f"CRITICAL ERROR importing backend modules: {e}")
@@ -62,6 +64,18 @@ except ImportError as e:
         if aqi_value <= 100: return {'level': 'Satisfactory', 'range': '51-100', 'color': '#D4E46A', 'implications': 'Minor breathing discomfort.'} # Lighter Green/Yellow
         if aqi_value <= 200: return {'level': 'Moderate', 'range': '101-200', 'color': '#FDD74B', 'implications': 'Breathing discomfort.'} # Yellow
         return {'level': 'Poor', 'range': '201+', 'color': '#FFA500', 'implications': 'Significant breathing discomfort.'} # Orange (simplified dummy)
+
+    def generate_forecast(target_city, days_ahead, apply_residual_correction):
+        print(f"Using DUMMY generate_forecast for {target_city}")
+        dates = pd.to_datetime([pd.Timestamp.now().date() + pd.Timedelta(days=i) for i in range(days_ahead)])
+        return pd.DataFrame({'ds': dates, 'yhat_adjusted': [50 + i*10 for i in range(days_ahead)]})
+
+    def format_forecast_for_ui(forecast_df):
+        print("Using DUMMY format_forecast_for_ui")
+        if forecast_df is None or forecast_df.empty: return []
+        return [{'date': row['ds'].strftime('%Y-%m-%d'), 'predicted_aqi': int(row['yhat_adjusted'])} 
+                for _, row in forecast_df.iterrows()]
+    class ModelFileNotFoundError(Exception): pass
 
     AQI_DEFINITION = "AQI definition not loaded (dummy). Check imports."
     AQI_SCALE = [{'level': 'Error', 'range': 'N/A', 'color': '#CCCCCC', 
@@ -145,7 +159,10 @@ app.layout = html.Div(className="app-shell", children=[
                 ])
             ])
         ]),
-        html.Div(className="widget-card", id="section-4-aqi-forecast", children=[html.H3("Section 4: AQI Forecast"), html.P("Content for AQI Forecast...")]),
+        html.Div(className="widget-card", id="section-4-aqi-forecast", children=[
+            html.H3("Section 4: AQI Forecast (Next 3 Days)"),
+            html.Div(id='aqi-forecast-table-content', className='forecast-widget-content')
+        ]),
         html.Div(className="widget-card", id="section-6-weekly-risks", children=[html.H3("Section 6: Predicted Weekly Risks"), html.P("Content for Weekly Risks...")]),
     ]),
 
@@ -157,6 +174,7 @@ app.layout = html.Div(className="app-shell", children=[
 
 # --- Callbacks ---
 
+# --- Section 1: Current Weather ---
 @app.callback(
     Output('current-weather-display', 'children'),
     [Input('city-dropdown', 'value')]
@@ -226,6 +244,7 @@ def update_current_weather(selected_city):
         # log.exception(f"General error for weather in {selected_city}") # Production logging
         return get_default_weather_layout(city_name_text=selected_city, error_message="Error loading weather.")
     
+# --- Section 2: Historical AQI Trend Graph ---
 @app.callback(
     Output('historical-aqi-trend-graph', 'figure'),
     [Input('city-dropdown', 'value')]
@@ -286,6 +305,8 @@ def update_historical_trend_graph(selected_city):
         # log.exception(f"Error generating historical trend graph for {selected_city}") # Production
         return create_placeholder_figure(f"Error displaying trend for {selected_city}", height=380)
     
+# --- Section 3: Current AQI Details ---
+
 # --- HELPER FUNCTION FOR SVG ARC (Keep this definition in your app.py, typically above callbacks) ---
 def describe_arc(x, y, radius, start_angle_deg, end_angle_deg):
     start_rad = math.radians(start_angle_deg)
@@ -390,6 +411,74 @@ def update_current_aqi_details(selected_city): # selected_city is "Delhi", "Mumb
         return html.Div(className="current-aqi-error-container", children=[
             html.P(f"Error loading AQI data for {selected_city}.", className="aqi-error-message")
         ])
+    
+# --- Section 4: AQI Forecast Table ---
+
+@app.callback(
+    Output('aqi-forecast-table-content', 'children'),
+    [Input('city-dropdown', 'value')]
+)
+def update_aqi_forecast_table(selected_city):
+    if not selected_city:
+        return html.P("Select a city to view AQI forecast.", style={'textAlign': 'center', 'marginTop': '20px'})
+
+    # predictor.py's generate_forecast expects the simple city name (e.g., "Delhi")
+    # for model file lookup. selected_city from dropdown is already this simple name.
+    
+    try:
+        # Default to 3 days forecast with residual correction.
+        # Your predictor.py handles fetching weather for regressors.
+        forecast_df = generate_forecast(
+            target_city=selected_city, 
+            days_ahead=3,  # Or use DEFAULT_FORECAST_DAYS from your predictor's config if accessible
+            apply_residual_correction=True 
+        )
+
+        if forecast_df is None or forecast_df.empty:
+            # This can happen if model loading fails, weather fails, or predictor returns None/empty
+            return html.P(f"AQI forecast data is currently unavailable for {selected_city}.", 
+                          className="forecast-error-message")
+
+        formatted_forecast_list = format_forecast_for_ui(forecast_df)
+
+        if not formatted_forecast_list:
+            return html.P(f"Could not format forecast data for {selected_city}.",
+                          className="forecast-error-message")
+
+        table_header = [
+            html.Thead(html.Tr([html.Th("Date"), html.Th("Predicted AQI")]))
+        ]
+        table_rows = [
+            html.Tr([
+                html.Td(item['date']), 
+                html.Td(item['predicted_aqi'])
+            ]) for item in formatted_forecast_list
+        ]
+        table_body = [html.Tbody(table_rows)]
+        
+        return html.Table(table_header + table_body, className="aqi-forecast-table")
+
+    except ModelFileNotFoundError:
+        # log.warning(f"ModelFileNotFoundError for {selected_city} forecast in Dash app.") # Example logging
+        print(f"Dash App: ModelFileNotFoundError for {selected_city} forecast.") # Dev console
+        return html.P(f"AQI forecast model not available for {selected_city}.", 
+                      className="forecast-error-message")
+    except APIError as e: # Catches API errors from weather_client called by predictor
+        # log.error(f"APIError during forecast generation for {selected_city} in Dash app: {e}")
+        print(f"Dash App: APIError during forecast for {selected_city}: {e}") # Dev console
+        return html.P(f"Weather data for forecast unavailable for {selected_city}. Please try again.",
+                      className="forecast-error-message")
+    except PredictionError as pe: # Custom error from predictor.py
+        # log.error(f"PredictionError for {selected_city} in Dash app: {pe}")
+        print(f"Dash App: PredictionError for {selected_city}: {pe}") # Dev console
+        return html.P(f"Could not generate forecast for {selected_city}: {pe}",
+                      className="forecast-error-message")
+    except Exception as e:
+        # log.exception(f"General error generating forecast for {selected_city} in Dash app")
+        print(f"Dash App: General error in forecast for {selected_city}: {e}") # Dev console
+        traceback.print_exc() # Dev console for full traceback
+        return html.P(f"Error generating AQI forecast for {selected_city}.",
+                      className="forecast-error-message")
 
 # --- Run the App ---
 if __name__ == '__main__':
