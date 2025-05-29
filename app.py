@@ -27,6 +27,7 @@ try:
     from src.api_integration.client import get_current_aqi_for_city
     from src.health_rules.info import get_aqi_info 
     from src.modeling.predictor import generate_forecast, format_forecast_for_ui
+    from src.api_integration.client import get_current_pollutant_risks_for_city
     from src.exceptions import APIError, ModelFileNotFoundError
 except ImportError as e:
     # This block is crucial for the app to run even if backend modules are missing/have issues.
@@ -75,6 +76,31 @@ except ImportError as e:
         if forecast_df is None or forecast_df.empty: return []
         return [{'date': row['ds'].strftime('%Y-%m-%d'), 'predicted_aqi': int(row['yhat_adjusted'])} 
                 for _, row in forecast_df.iterrows()]
+    
+    def get_current_pollutant_risks_for_city(city_name):
+        print(f"Using DUMMY get_current_pollutant_risks_for_city for {city_name}")
+        # Simulate a successful call and an error or no risks
+        city_simple = city_name.split(',')[0]
+        if city_simple == "Delhi":
+            return {
+                'city': 'Delhi', 
+                'time': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'), 
+                'pollutants': {'pm25': {'v': 160}, 'co': {'v': 5.0}}, 
+                'risks': [
+                    "PM2.5: Moderate - May cause breathing discomfort to people with lung disease such as asthma, and discomfort to people with heart disease, children and older adults.",
+                    "CO: Satisfactory - Minor breathing discomfort to sensitive individuals."
+                ]
+            }
+        elif city_simple == "Mumbai":
+             return {
+                'city': 'Mumbai', 
+                'time': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'), 
+                'pollutants': {'pm10': {'v': 45}}, 
+                'risks': ["No significant pollutant risks identified at this time."] # Or just an empty list
+            }
+        else: # Simulate an error or no data
+            return {'city': city_simple, 'time': None, 'pollutants': {}, 'risks': [], 'error': 'Pollutant data unavailable for this city.'}
+        
     class ModelFileNotFoundError(Exception): pass
 
     AQI_DEFINITION = "AQI definition not loaded (dummy). Check imports."
@@ -134,7 +160,10 @@ app.layout = html.Div(className="app-shell", children=[
             html.H3("Section 3: Current AQI"),
             html.Div(id='current-aqi-details-content', className='current-aqi-widget-content') # This Div will be populated by the callback
         ]),
-        html.Div(className="widget-card", id="section-5-pollutant-risks", children=[html.H3("Section 5: Current Pollutant Risks"), html.P("Content for Pollutant Risks...")]),
+        html.Div(className="widget-card", id="section-5-pollutant-risks", children=[
+            html.H3("Section 5: Current Pollutant Risks"),
+            html.Div(id='current-pollutant-risks-content', className='pollutant-risks-widget-content') # Populated by callback
+        ]),
 
         # Row 2
         html.Div(className="widget-card", id="section-2-edu-info", children=[
@@ -479,6 +508,79 @@ def update_aqi_forecast_table(selected_city):
         traceback.print_exc() # Dev console for full traceback
         return html.P(f"Error generating AQI forecast for {selected_city}.",
                       className="forecast-error-message")
+
+# --- Section 5: Current Pollutant Risk ---
+
+@app.callback(
+    Output('current-pollutant-risks-content', 'children'),
+    [Input('city-dropdown', 'value')]
+)
+def update_pollutant_risks_display(selected_city):
+    if not selected_city:
+        return html.P("Select a city to view current pollutant risks.", 
+                      style={'textAlign': 'center', 'marginTop': '20px'})
+
+    # get_current_pollutant_risks_for_city expects "City, India" format as per client.py structure
+    query_city_for_api = f"{selected_city}, India" 
+
+    try:
+        risks_data = get_current_pollutant_risks_for_city(query_city_for_api)
+
+        if not risks_data or 'error' in risks_data or not risks_data.get('risks'):
+            error_message = "Pollutant risk data unavailable."
+            if isinstance(risks_data, dict) and 'error' in risks_data:
+                error_message = risks_data['error']
+            elif not isinstance(risks_data, dict) or not risks_data.get('risks'): # No risks or malformed
+                error_message = f"No specific pollutant risks identified or data is incomplete for {selected_city}."
+
+            return html.Div([
+                html.P(error_message, className="pollutant-risk-error")
+            ], style={'textAlign': 'center', 'paddingTop': '30px'})
+
+        # If we have risks
+        risk_items = []
+        if risks_data['risks']: # Ensure 'risks' key exists and is not empty
+            for risk_statement in risks_data['risks']:
+                # Attempt to highlight the pollutant part of the risk statement
+                parts = risk_statement.split(":", 1)
+                if len(parts) == 2:
+                    pollutant_part = html.Strong(f"{parts[0]}:")
+                    message_part = html.Span(parts[1])
+                    risk_items.append(html.Li([pollutant_part, message_part], className="pollutant-risk-item"))
+                else:
+                    risk_items.append(html.Li(risk_statement, className="pollutant-risk-item"))
+        else: # Should be caught by the check above, but as a fallback
+            risk_items.append(html.Li("No significant pollutant risks identified at this time.", className="pollutant-risk-item-none"))
+        
+        # Optional: Display raw pollutant data (collapsible for tidiness)
+        raw_pollutants = risks_data.get('pollutants', {})
+        pollutant_details_children = []
+        if raw_pollutants:
+            for pol, data_val in raw_pollutants.items():
+                if isinstance(data_val, dict) and 'v' in data_val: # Standard iaqi format
+                     pollutant_details_children.append(html.P(f"{pol.upper()}: {data_val['v']}", className="raw-pollutant-value"))
+
+        collapsible_content = []
+        if pollutant_details_children:
+            collapsible_content = [
+                html.Details([
+                    html.Summary("View Raw Pollutant Values", className="raw-pollutants-summary"),
+                    html.Div(pollutant_details_children, className="raw-pollutants-container")
+                ], className="pollutant-details-collapsible", open=False) # Collapsed by default
+            ]
+
+        return html.Div([
+            html.H5("Key Health Advisories:", className="pollutant-risk-title"),
+            html.Ul(risk_items, className="pollutant-risk-list")
+        ] + collapsible_content) # Add collapsible section if it has content
+
+    except APIError as e: # From the underlying get_city_aqi_data call
+        print(f"APIError fetching pollutant risks for {query_city_for_api}: {e}")
+        return html.P(f"Service error retrieving pollutant data for {selected_city}.", className="pollutant-risk-error")
+    except Exception as e:
+        print(f"General error updating pollutant risks for {query_city_for_api}: {e}")
+        traceback.print_exc()
+        return html.P(f"Error loading pollutant risk data for {selected_city}.", className="pollutant-risk-error")
 
 # --- Run the App ---
 if __name__ == '__main__':

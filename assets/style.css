@@ -448,6 +448,86 @@ body {
     padding: 20px;
 }
 
+/* Styling for Section 5: Current Pollutant Risks Widget */
+.pollutant-risks-widget-content {
+    padding: 15px;
+    height: 100%; /* Allow it to use card height */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* Scroll if content exceeds card height */
+}
+
+.pollutant-risk-title {
+    font-size: 1.1em;
+    color: #0077B6; /* Match widget title */
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(0, 123, 255, 0.2);
+    padding-bottom: 5px;
+}
+
+.pollutant-risk-list {
+    list-style-type: none; /* Remove default bullets */
+    padding-left: 0;
+    margin-bottom: 15px;
+}
+
+.pollutant-risk-item {
+    padding: 8px 0;
+    font-size: 0.9em;
+    line-height: 1.5;
+    border-bottom: 1px dashed rgba(10, 77, 104, 0.1); /* Light separator */
+}
+.pollutant-risk-item:last-child {
+    border-bottom: none;
+}
+.pollutant-risk-item strong { /* For pollutant name like PM2.5: */
+    color: #E74C3C; /* A warning-like color, or could be dynamic */
+    margin-right: 5px;
+}
+.pollutant-risk-item-none {
+    font-style: italic;
+    color: #526777;
+}
+
+
+/* Styling for collapsible raw pollutant data */
+.pollutant-details-collapsible {
+    margin-top: 15px;
+    border: 1px solid rgba(10, 77, 104, 0.15);
+    border-radius: 6px;
+    padding: 0; /* Reset padding for details element */
+}
+.raw-pollutants-summary {
+    padding: 8px 12px;
+    font-weight: 500;
+    cursor: pointer;
+    background-color: rgba(230, 247, 255, 0.4); /* Light background for summary */
+    border-radius: 6px 6px 0 0; /* Match top corners if details is open */
+    outline: none; /* Remove focus outline */
+}
+.pollutant-details-collapsible[open] .raw-pollutants-summary {
+     border-bottom: 1px solid rgba(10, 77, 104, 0.15);
+}
+.raw-pollutants-container {
+    padding: 10px 15px;
+    font-size: 0.85em;
+    background-color: rgba(255,255,255,0.5); /* Slightly different bg for content */
+    border-radius: 0 0 6px 6px;
+}
+.raw-pollutant-value {
+    margin: 3px 0;
+    color: #34495E;
+}
+
+
+.pollutant-risk-error { /* For error messages */
+    color: #D32F2F;
+    font-size: 0.9em;
+    text-align: center;
+    padding: 20px;
+    font-weight: 500;
+}
+
 /* Footer */
 .page-footer {
     text-align: center;
