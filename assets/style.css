@@ -528,6 +528,61 @@ body {
     font-weight: 500;
 }
 
+/* Styling for Section 6: Predicted Weekly Risks Widget */
+.predicted-risks-widget-content {
+    padding-top: 10px;
+    width: 100%;
+    max-height: 340px; /* Max height for the list area before scroll */
+                       /* Adjust based on typical content height of 3 days */
+    overflow-y: auto;  /* Vertical scroll if content is too long */
+}
+
+.predicted-risk-day-card {
+    /* borderLeft, marginBottom, padding, borderRadius, backgroundColor are set inline */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.07);
+    transition: transform 0.2s ease-in-out; /* Subtle hover effect */
+}
+.predicted-risk-day-card:hover {
+    transform: translateY(-2px);
+}
+
+.predicted-risk-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.predicted-risk-date {
+    font-size: 1.05em;
+    font-weight: 600;
+    color: #0A4D68; /* Primary text color */
+}
+
+.predicted-risk-aqi-level {
+    font-size: 0.95em;
+    font-weight: 500;
+    padding: 3px 7px;
+    border-radius: 4px;
+    /* Text color is set inline, background can be added if needed */
+    /* background-color: rgba(0,0,0,0.05); */
+}
+
+.predicted-risk-implications {
+    font-size: 0.85em;
+    line-height: 1.5;
+    color: #475569; /* Content text color */
+    margin: 0; /* Reset paragraph margin */
+}
+
+.predicted-risk-error { /* For error messages */
+    color: #D32F2F;
+    font-size: 0.9em;
+    text-align: center;
+    padding: 20px;
+    font-weight: 500;
+}
+
 /* Footer */
 .page-footer {
     text-align: center;
