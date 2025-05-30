@@ -149,80 +149,85 @@ app.title = "BreatheEasy"
 
 # --- App Layout ---
 app.layout = html.Div(className="app-shell", children=[
-    html.Div(className="page-header", children=[
-        html.Div("LOGO", className="logo-placeholder")
-    ]),
-
-    html.Div(className="control-bar", children=[
-        html.Div(className="city-dropdown-container", children=[
-            dcc.Dropdown(
-                id='city-dropdown',
-                options=[{'label': city, 'value': city} for city in HARDCODED_CITIES],
-                value=HARDCODED_CITIES[0] if HARDCODED_CITIES else None,
-                placeholder="Select a city",
-                clearable=False,
-                className="city-dropdown"
-            )
-        ]),
-        html.Div(id='current-weather-display', className="current-weather-display")
-    ]),
-
-    html.Div(className="main-content-grid", children=[
-        # Row 1
-        html.Div(className="widget-card", id="section-1-hist-summary", children=[
-            html.H3("Section 1: Historical Summary"),
-            dcc.Graph(
-                id='historical-aqi-trend-graph',
-                figure={}, 
-                config={'responsive': True, 'displayModeBar': False},
-                className='flex-graph-container' # Styled by CSS to grow
-            )
-        ]),
-       html.Div(className="widget-card", id="section-3-curr-aqi", children=[
-            html.H3("Section 3: Current AQI"),
-            html.Div(id='current-aqi-details-content', className='current-aqi-widget-content') # This Div will be populated by the callback
-        ]),
-        html.Div(className="widget-card", id="section-5-pollutant-risks", children=[
-            html.H3("Section 5: Current Pollutant Risks"),
-            html.Div(id='current-pollutant-risks-content', className='pollutant-risks-widget-content') # Populated by callback
+    # ---- START NEW WRAPPER for content above footer ----
+    html.Div(className="content-above-footer", children=[
+        html.Div(className="page-header", children=[
+            html.Div("LOGO", className="logo-placeholder")
         ]),
 
-        # Row 2
-        html.Div(className="widget-card", id="section-2-edu-info", children=[
-            html.H3("Section 2: AQI Educational Info"),
-            html.Div(className="edu-info-content", children=[
-                dcc.Markdown(
-                    AQI_DEFINITION,
-                    className="aqi-definition-markdown"
-                ),
-                html.Hr(className="edu-info-separator"),
-                html.H4("AQI Categories (CPCB India)", className="aqi-scale-title"),
-                html.Div(className="aqi-scale-container", children=[
-                    html.Div(
-                        className="aqi-category-card",
-                        style={'borderColor': category['color'], 'backgroundColor': f"{category['color']}20"}, 
-                        children=[
-                            html.Strong(f"{category['level']} ", className="aqi-category-level"),
-                            html.Span(f"({category['range']})", className="aqi-category-range"),
-                            html.P(category['implications'], className="aqi-category-implications")
-                        ]
-                    ) for category in AQI_SCALE
+        html.Div(className="control-bar", children=[
+            html.Div(className="city-dropdown-container", children=[
+                dcc.Dropdown(
+                    id='city-dropdown',
+                    options=[{'label': city, 'value': city} for city in HARDCODED_CITIES],
+                    value=HARDCODED_CITIES[0] if HARDCODED_CITIES else None,
+                    placeholder="Select a city",
+                    clearable=False,
+                    className="city-dropdown"
+                )
+            ]),
+            html.Div(id='current-weather-display', className="current-weather-display")
+        ]),
+
+        html.Div(className="main-content-grid", children=[
+            # Row 1
+            html.Div(className="widget-card", id="section-1-hist-summary", children=[
+                html.H3("Section 1: Historical Summary"),
+                dcc.Graph(
+                    id='historical-aqi-trend-graph',
+                    figure={},
+                    config={'responsive': True, 'displayModeBar': False},
+                    className='flex-graph-container' # Styled by CSS to grow
+                )
+            ]),
+            html.Div(className="widget-card", id="section-3-curr-aqi", children=[
+                html.H3("Section 3: Current AQI"),
+                html.Div(id='current-aqi-details-content', className='current-aqi-widget-content') # This Div will be populated by the callback
+            ]),
+            html.Div(className="widget-card", id="section-5-pollutant-risks", children=[
+                html.H3("Section 5: Current Pollutant Risks"),
+                html.Div(id='current-pollutant-risks-content', className='pollutant-risks-widget-content') # Populated by callback
+            ]),
+
+            # Row 2
+            html.Div(className="widget-card", id="section-2-edu-info", children=[
+                html.H3("Section 2: AQI Educational Info"),
+                html.Div(className="edu-info-content", children=[
+                    dcc.Markdown(
+                        AQI_DEFINITION,
+                        className="aqi-definition-markdown"
+                    ),
+                    html.Hr(className="edu-info-separator"),
+                    html.H4("AQI Categories (CPCB India)", className="aqi-scale-title"),
+                    html.Div(className="aqi-scale-container", children=[
+                        html.Div(
+                            className="aqi-category-card",
+                            style={'borderColor': category['color'], 'backgroundColor': f"{category['color']}20"},
+                            children=[
+                                html.Strong(f"{category['level']} ", className="aqi-category-level"),
+                                html.Span(f"({category['range']})", className="aqi-category-range"),
+                                html.P(category['implications'], className="aqi-category-implications")
+                            ]
+                        ) for category in AQI_SCALE
+                    ])
                 ])
-            ])
-        ]),
-        html.Div(className="widget-card", id="section-4-aqi-forecast", children=[
-            html.H3("Section 4: AQI Forecast (Next 3 Days)"),
-            html.Div(id='aqi-forecast-table-content', className='forecast-widget-content')
-        ]),
-         html.Div(className="widget-card", id="section-6-weekly-risks", children=[
-            html.H3("Section 6: Predicted Weekly Risks & Advisories"),
-            html.Div(id='predicted-weekly-risks-content', className='predicted-risks-widget-content'),
-    ]),
+            ]),
+            html.Div(className="widget-card", id="section-4-aqi-forecast", children=[
+                html.H3("Section 4: AQI Forecast (Next 3 Days)"),
+                html.Div(id='aqi-forecast-table-content', className='forecast-widget-content')
+            ]),
+            html.Div(className="widget-card", id="section-6-weekly-risks", children=[
+                html.H3("Section 6: Predicted Weekly Risks & Advisories"),
+                html.Div(id='predicted-weekly-risks-content', className='predicted-risks-widget-content'),
+            ]) # Make sure the comma is here if it was there before
+        ]) # End of main-content-grid's children list
+    ]), # ---- END NEW WRAPPER for content above footer ----
+    # The comma above is important to separate the new Div from the footer Div in the app-shell's children list
 
     html.Div(className="page-footer", children=[
         html.P("Project Team: Arnav Vidya, Chirag P Patil, Kimaya Anand | School: Delhi Public School Bangalore South"),
-        html.P("Copyright © 2025 BreatheEasy Project Team. Licensed under MIT License.")]),
-    ])
+        html.P("Copyright © 2025 BreatheEasy Project Team. Licensed under MIT License.")
+    ]) # No comma here, as it's the last item in app-shell's children list
 ])
 
 # --- Callbacks ---
