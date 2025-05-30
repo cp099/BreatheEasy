@@ -396,56 +396,86 @@ body {
 
 /* Styling for Section 4: AQI Forecast Widget */
 .forecast-widget-content {
-    padding-top: 10px; 
+    padding-top: 10px; /* Space from H3 title */
     width: 100%;
-    overflow-x: auto; /* Allow horizontal scroll if table is too wide */
-    max-height: 320px; /* Max height for the table area before scroll */
-    overflow-y: auto;  /* Vertical scroll if many days are forecasted */
+    max-height: 320px; /* Max height for the card list before scroll kicks in */
+                       /* This should be less than .widget-card min-height minus H3 height */
+    overflow-y: auto;  /* Enable vertical scrollbar if content exceeds max-height */
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* This will space out the .forecast-day-card elements */
 }
 
-.aqi-forecast-table {
-    width: 100%;
-    border-collapse: collapse; 
-    font-size: 0.9em;
+.forecast-day-card {
+    /* borderLeft, backgroundColor are set inline via style attribute in app.py */
+    /* padding is set inline: 'padding': '12px 15px', */
+    /* borderRadius is set inline: 'borderRadius': '6px', */
+    /* marginBottom is handled by parent's gap */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.06); /* Softer shadow */
+    transition: box-shadow 0.2s ease-in-out;
+}
+.forecast-day-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08); /* Slightly more pronounced shadow on hover */
 }
 
-.aqi-forecast-table th, .aqi-forecast-table td {
-    border: 1px solid rgba(10, 77, 104, 0.2); 
-    padding: 8px 12px; /* Increased padding slightly */
-    text-align: left;
-    vertical-align: middle;
+.forecast-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px; /* Space if implications were present */
 }
 
-.aqi-forecast-table th {
-    background-color: rgba(0, 169, 255, 0.15); /* Slightly more vibrant header */
-    color: #005A8C; /* Darker blue for header text */
+.forecast-date {
+    font-size: 1em; /* Adjusted size */
     font-weight: 600;
-    position: sticky; /* Make header sticky if table scrolls vertically */
-    top: 0;
-    z-index: 2; /* Ensure header stays above scrolling content */
+    color: #0A4D68; 
 }
 
-.aqi-forecast-table tr:nth-child(even) td { 
-    background-color: rgba(230, 247, 255, 0.4); 
+.forecast-aqi-level {
+    font-size: 0.9em; /* Adjusted size */
+    font-weight: 500; /* Normal weight for level text part */
+    padding: 2px 6px;
+    border-radius: 4px;
+    /* The 'color' style (for text) is set inline based on aqi_color */
+    /* background-color: rgba(0,0,0,0.04); /* Optional very light bg for the tag itself */
 }
-.aqi-forecast-table tr:hover td {
-    background-color: rgba(0, 169, 255, 0.1); /* Hover effect for rows */
-}
-
-.aqi-forecast-table td:nth-child(1) { /* Date column */
-    min-width: 100px; /* Ensure date column has enough space */
-}
-.aqi-forecast-table td:nth-child(2) { /* Predicted AQI column */
-    text-align: center;
-    font-weight: 500;
-    min-width: 80px;
+.forecast-aqi-level > span[style*="fontWeight: bold"] { /* Target the AQI number if wrapped */
+    margin-right: 3px; /* Space between AQI number and (Level) */
 }
 
-.forecast-error-message {
+
+/* Optional: If you add implications back to Section 4 cards */
+.forecast-implications {
+    font-size: 0.85em;
+    line-height: 1.4;
+    color: #475569;
+    margin: 5px 0 0 0; /* Add top margin if header is present */
+    padding-left: 2px; /* Align with header text if border is present */
+}
+
+.forecast-error-message { 
     color: #D32F2F;
     font-size: 0.9em;
     text-align: center;
     padding: 20px;
+    font-weight: 500;
+}
+
+/* Scrollbar styling for .forecast-widget-content (same as Section 2 & 6) */
+.forecast-widget-content::-webkit-scrollbar {
+    width: 8px;
+}
+.forecast-widget-content::-webkit-scrollbar-track {
+    background: rgba(230, 247, 255, 0.5); 
+    border-radius: 4px;
+}
+.forecast-widget-content::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 169, 255, 0.6); 
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.3); 
+}
+.forecast-widget-content::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 169, 255, 0.8);
 }
 
 /* Styling for Section 5: Current Pollutant Risks Widget */

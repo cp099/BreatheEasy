@@ -468,68 +468,100 @@ def update_current_aqi_details(selected_city): # selected_city is "Delhi", "Mumb
 # --- Section 4: AQI Forecast Table ---
 
 @app.callback(
-    Output('aqi-forecast-table-content', 'children'),
+    Output('aqi-forecast-table-content', 'children'), # Output ID remains the same
     [Input('city-dropdown', 'value')]
 )
-def update_aqi_forecast_table(selected_city):
+def update_aqi_forecast_display(selected_city): # Function name updated
     if not selected_city:
-        return html.P("Select a city to view AQI forecast.", style={'textAlign': 'center', 'marginTop': '20px'})
+        return html.P("Select a city to view AQI forecast.", 
+                      style={'textAlign': 'center', 'marginTop': '20px'})
 
-    # predictor.py's generate_forecast expects the simple city name (e.g., "Delhi")
-    # for model file lookup. selected_city from dropdown is already this simple name.
-    
     try:
-        # Default to 3 days forecast with residual correction.
-        # Your predictor.py handles fetching weather for regressors.
+        days_to_forecast = 3 
         forecast_df = generate_forecast(
             target_city=selected_city, 
-            days_ahead=3,  # Or use DEFAULT_FORECAST_DAYS from your predictor's config if accessible
+            days_ahead=days_to_forecast, 
             apply_residual_correction=True 
         )
 
         if forecast_df is None or forecast_df.empty:
-            # This can happen if model loading fails, weather fails, or predictor returns None/empty
             return html.P(f"AQI forecast data is currently unavailable for {selected_city}.", 
                           className="forecast-error-message")
 
-        formatted_forecast_list = format_forecast_for_ui(forecast_df)
+        list_of_daily_forecasts = format_forecast_for_ui(forecast_df)
 
-        if not formatted_forecast_list:
+        if not list_of_daily_forecasts:
             return html.P(f"Could not format forecast data for {selected_city}.",
                           className="forecast-error-message")
 
-        table_header = [
-            html.Thead(html.Tr([html.Th("Date"), html.Th("Predicted AQI")]))
-        ]
-        table_rows = [
-            html.Tr([
-                html.Td(item['date']), 
-                html.Td(item['predicted_aqi'])
-            ]) for item in formatted_forecast_list
-        ]
-        table_body = [html.Tbody(table_rows)]
+        forecast_cards = []
+        for day_forecast in list_of_daily_forecasts:
+            predicted_aqi_value = day_forecast.get('predicted_aqi')
+            forecast_date = day_forecast.get('date')
+
+            if predicted_aqi_value is None or forecast_date is None:
+                # log.warning(f"Skipping a forecast day for {selected_city} due to missing data: {day_forecast}")
+                continue 
+
+            category_info = get_aqi_info(predicted_aqi_value) # Get color and level
+            aqi_level = category_info.get('level', 'N/A')
+            aqi_color = category_info.get('color', '#DDDDDD') # Default gray
+            # aqi_implications = category_info.get('implications', 'Details unavailable.') # Optional
+
+            card_style = {
+                'borderLeft': f"7px solid {aqi_color}",
+                'marginBottom': '10px', # This will be overridden by gap if parent is flex column
+                'padding': '12px 15px', # Slightly more padding
+                'borderRadius': '6px',
+                'backgroundColor': f"{aqi_color}1A" # Hex with alpha (e.g., #RRGGBBAA)
+            }
+            
+            forecast_cards.append(
+                html.Div(style=card_style, className="forecast-day-card", children=[
+                    html.Div(className="forecast-card-header", children=[
+                        html.Strong(forecast_date, className="forecast-date"),
+                        html.Span(
+                            children=[
+                                "AQI: ", 
+                                html.Span(f"{predicted_aqi_value}", style={'fontWeight': 'bold'}),
+                                f" ({aqi_level})"
+                            ], 
+                            className="forecast-aqi-level", 
+                            style={'color': aqi_color} # Color the whole span text
+                        ) 
+                    ]),
+                    # Uncomment to add implications:
+                    # html.P(aqi_implications, className="forecast-implications") 
+                ])
+            )
         
-        return html.Table(table_header + table_body, className="aqi-forecast-table")
+        if not forecast_cards:
+             return html.P(f"No forecast data to display for {selected_city} after formatting.",
+                          className="forecast-error-message")
+
+        # The parent div in layout is 'aqi-forecast-table-content' 
+        # Its class 'forecast-widget-content' will handle scrolling and card spacing (via gap)
+        return forecast_cards # Return list of card Divs directly
 
     except ModelFileNotFoundError:
-        # log.warning(f"ModelFileNotFoundError for {selected_city} forecast in Dash app.") # Example logging
-        print(f"Dash App: ModelFileNotFoundError for {selected_city} forecast.") # Dev console
+        # log.warning(f"ModelFileNotFoundError for {selected_city} forecast (Section 4).")
+        print(f"Dash App: ModelFileNotFoundError for {selected_city} forecast (Section 4).")
         return html.P(f"AQI forecast model not available for {selected_city}.", 
                       className="forecast-error-message")
-    except APIError as e: # Catches API errors from weather_client called by predictor
-        # log.error(f"APIError during forecast generation for {selected_city} in Dash app: {e}")
-        print(f"Dash App: APIError during forecast for {selected_city}: {e}") # Dev console
+    except APIError as e: 
+        # log.error(f"APIError during forecast for {selected_city} (Section 4): {e}")
+        print(f"Dash App: APIError during forecast for {selected_city} (Section 4): {e}")
         return html.P(f"Weather data for forecast unavailable for {selected_city}. Please try again.",
                       className="forecast-error-message")
-    except PredictionError as pe: # Custom error from predictor.py
-        # log.error(f"PredictionError for {selected_city} in Dash app: {pe}")
-        print(f"Dash App: PredictionError for {selected_city}: {pe}") # Dev console
+    except PredictionError as pe: 
+        # log.error(f"PredictionError for {selected_city} forecast (Section 4): {pe}")
+        print(f"Dash App: PredictionError for {selected_city} forecast (Section 4): {pe}")
         return html.P(f"Could not generate forecast for {selected_city}: {pe}",
                       className="forecast-error-message")
     except Exception as e:
-        # log.exception(f"General error generating forecast for {selected_city} in Dash app")
-        print(f"Dash App: General error in forecast for {selected_city}: {e}") # Dev console
-        traceback.print_exc() # Dev console for full traceback
+        # log.exception(f"General error in forecast for {selected_city} (Section 4)")
+        print(f"Dash App: General error in forecast for {selected_city} (Section 4): {e}")
+        traceback.print_exc()
         return html.P(f"Error generating AQI forecast for {selected_city}.",
                       className="forecast-error-message")
 
