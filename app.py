@@ -172,7 +172,7 @@ app.layout = html.Div(className="app-shell", children=[
         html.Div(className="main-content-grid", children=[
             # Row 1
             html.Div(className="widget-card", id="section-1-hist-summary", children=[
-                html.H3("Section 1: Historical Summary"),
+                html.H3("Historical Summary"),
                 dcc.Graph(
                     id='historical-aqi-trend-graph',
                     figure={},
@@ -181,17 +181,17 @@ app.layout = html.Div(className="app-shell", children=[
                 )
             ]),
             html.Div(className="widget-card", id="section-3-curr-aqi", children=[
-                html.H3("Section 3: Current AQI"),
+                html.H3("Current AQI"),
                 html.Div(id='current-aqi-details-content', className='current-aqi-widget-content') # This Div will be populated by the callback
             ]),
             html.Div(className="widget-card", id="section-5-pollutant-risks", children=[
-                html.H3("Section 5: Current Pollutant Risks"),
+                html.H3("Current Pollutant Risks"),
                 html.Div(id='current-pollutant-risks-content', className='pollutant-risks-widget-content') # Populated by callback
             ]),
 
             # Row 2
             html.Div(className="widget-card", id="section-2-edu-info", children=[
-                html.H3("Section 2: AQI Educational Info"),
+                html.H3("AQI Educational Info"),
                 html.Div(className="edu-info-content", children=[
                     dcc.Markdown(
                         AQI_DEFINITION,
@@ -213,11 +213,11 @@ app.layout = html.Div(className="app-shell", children=[
                 ])
             ]),
             html.Div(className="widget-card", id="section-4-aqi-forecast", children=[
-                html.H3("Section 4: AQI Forecast (Next 3 Days)"),
+                html.H3("AQI Forecast (Next 3 Days)"),
                 html.Div(id='aqi-forecast-table-content', className='forecast-widget-content')
             ]),
             html.Div(className="widget-card", id="section-6-weekly-risks", children=[
-                html.H3("Section 6: Predicted Weekly Risks & Advisories"),
+                html.H3("Predicted Weekly Risks & Advisories"),
                 html.Div(id='predicted-weekly-risks-content', className='predicted-risks-widget-content'),
             ]) # Make sure the comma is here if it was there before
         ]) # End of main-content-grid's children list
