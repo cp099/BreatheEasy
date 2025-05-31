@@ -617,13 +617,30 @@ def update_pollutant_risks_display(selected_city):
         raw_pollutants = risks_data.get('pollutants', {})
         pollutant_details_children = []
         if raw_pollutants:
-            for pol, data_val in raw_pollutants.items():
-                if isinstance(data_val, dict) and 'v' in data_val: # Standard iaqi format
-                     pollutant_details_children.append(html.P(f"{pol.upper()}: {data_val['v']}", className="raw-pollutant-value"))
+            for pol_code, data_dict in raw_pollutants.items():
+                if isinstance(data_dict, dict) and 'v' in data_dict:
+                    value = data_dict['v']
+                    # Attempt to round long floats, otherwise use as is
+                    try:
+                        if isinstance(value, float) and (abs(value - round(value, 2)) > 1e-9 or len(str(value).split('.')[-1]) > 2) : # if it has more than 2 decimal places meaningfully
+                            display_value = f"{value:.1f}" # Show one decimal place for floats
+                        elif isinstance(value, float):
+                             display_value = f"{int(value)}" # Show as int if it's like 20.0
+                        else:
+                            display_value = str(value)
+                    except:
+                        display_value = str(value) # Fallback
+
+                    pollutant_details_children.append(
+                        html.Div(className="pollutant-pill", children=[
+                            html.Span(f"{pol_code.upper()}: ", className="pollutant-pill-name"), # Added colon and space
+                            html.Span(display_value, className="pollutant-pill-value")
+                        ])
+                    )
 
         collapsible_content = []
         if pollutant_details_children:
-            collapsible_content = [
+            collapsible_content = [ 
                 html.Details([
                     html.Summary("View Raw Pollutant Values", className="raw-pollutants-summary"),
                     html.Div(pollutant_details_children, className="raw-pollutants-container")

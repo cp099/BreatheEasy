@@ -1,25 +1,27 @@
 /* BREATHEEASY/assets/style.css */
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+html, body {
+    height: 100%;
     margin: 0;
     padding: 0;
-    background: linear-gradient(135deg, #E6F7FF 0%, #D0F0FF 100%);
-    color: #0A4D68;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+    overflow-x: hidden; /* Prevent horizontal scroll on body */
 }
 
-.app-shell {
-    width: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 20px 0;
-    box-sizing: border-box;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    background: linear-gradient(135deg, #E6F7FF 0%, #D0F0FF 100%);
+    color: #0A4D68;
     display: flex;
     flex-direction: column;
-    flex-grow: 1;
-    position: relative;
+    /* min-height: 100vh; /* Covered by height: 100% on html,body */
+}
+
+.app-shell { 
+    width: 100%;  
+    padding: 20px; 
+    box-sizing: border-box; 
+    display: flex; 
+    flex-direction: column; 
+    flex-grow: 1; 
 }
 
 /* Page Header */
@@ -35,6 +37,7 @@ body {
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.25);
+    flex-shrink: 0;
 }
 
 .logo-placeholder {
@@ -72,6 +75,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.25);
     position: relative; 
     z-index: 10;   
+    flex-shrink: 0;
 }
 
 .city-dropdown-container {
@@ -190,26 +194,27 @@ body {
     display: grid;
     grid-template-columns: repeat(3, 1fr); 
     gap: 25px;
-    padding: 10px 0;
-    flex-grow: 1; /* Allows grid to take up remaining vertical space */
+    padding: 20px 0;
+    flex-grow: 1; 
 }
 
 /* Widget Card General Styling */
-.widget-card {
+.widget-card { 
     background-color: rgba(255, 255, 255, 0.75); 
     backdrop-filter: blur(12px); 
-    -webkit-backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px); 
     border-radius: 18px; 
     padding: 20px 25px; 
     box-shadow: 0 8px 30px rgba(0, 70, 110, 0.12); 
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    display: flex; /* Key for internal layout */
-    flex-direction: column; /* Stack H3 and graph/content */
-    min-height: 430px; 
+    border: 1px solid rgba(255, 255, 255, 0.4); 
+    display: flex; 
+    flex-direction: column; 
+    min-height: 400px;
     position: relative; 
     z-index: 1; 
-    overflow: hidden; /* Prevents blurred backdrop from spilling, might help with child layering */
+    overflow: hidden; 
 }
+
 
 .widget-card h3 {
     margin-top: 0;
@@ -218,20 +223,17 @@ body {
     font-size: 1.25em; 
     font-weight: 600; 
     text-align: center;
-    flex-shrink: 0; /* Prevent H3 from shrinking if content below wants more space */
-    position: relative; /* Ensure H3 is in the normal flow and can have z-index if needed, though not used here */
-    z-index: 2; /* Tentatively make H3 slightly higher than a default graph z-index if graph had one (it doesn't by default) */
-                 /* More importantly, this establishes a stacking context for H3 if it ever needed to overlap for some reason. */
-                 /* For just preventing overlap BY the graph, this is not strictly needed if graph isn't positioned absolutely. */
+    flex-shrink: 0; 
+    position: relative; 
+    z-index: 2; 
 }
 
 /* Styling for the dcc.Graph container in Section 1 */
 .flex-graph-container {
-    flex-grow: 1;  /* Allows the graph container to take remaining vertical space */
-    min-height: 0; /* Essential for flex items to shrink properly if needed */
-    width: 100%;   /* Ensure it takes full width of the card */
-    position: relative; /* Helps contain absolutely positioned elements within Plotly if any */
-    /* background-color: lightcoral; */ /* DEBUG: To see the graph container's bounds */
+    flex-grow: 1;  
+    min-height: 0; 
+    width: 100%;   
+    position: relative; 
 }
 
 /* Force the actual Plotly chart div (inside dcc.Graph) to also take full height */
@@ -279,6 +281,14 @@ body {
 #section-2-edu-info .edu-info-content::-webkit-scrollbar-thumb { background-color: rgba(0, 169, 255, 0.6); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.3); }
 #section-2-edu-info .edu-info-content::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 169, 255, 0.8); }
 
+#section-2-edu-info .edu-info-content,
+.pollutant-risks-widget-content,
+.predicted-risks-widget-content,
+.forecast-widget-content {
+    flex-grow: 1;     
+    overflow-y: auto; 
+    min-height: 0;    
+}
 
 /* Responsive adjustments */
 @media (max-width: 1200px) { 
@@ -521,35 +531,65 @@ body {
 }
 
 
-/* Styling for collapsible raw pollutant data */
 .pollutant-details-collapsible {
     margin-top: 15px;
-    border: 1px solid rgba(10, 77, 104, 0.15);
+    border: 1px solid rgba(10, 77, 104, 0.1); /* Lighter border */
     border-radius: 6px;
-    padding: 0; /* Reset padding for details element */
+    background-color: rgba(248, 251, 255, 0.7); /* Very light background for the whole details block */
 }
 .raw-pollutants-summary {
-    padding: 8px 12px;
-    font-weight: 500;
+    padding: 10px 15px;
+    font-weight: 600;
+    font-size: 0.9em;
+    color: #005A8C; /* Darker blue for summary text */
     cursor: pointer;
-    background-color: rgba(230, 247, 255, 0.4); /* Light background for summary */
-    border-radius: 6px 6px 0 0; /* Match top corners if details is open */
-    outline: none; /* Remove focus outline */
+    /* background-color: rgba(230, 247, 255, 0.5); /* Removing specific bg, parent has one */
+    border-radius: 6px; /* Apply to top if not open */
+    outline: none; 
+    display: block;
+    transition: background-color 0.2s ease;
 }
 .pollutant-details-collapsible[open] .raw-pollutants-summary {
-     border-bottom: 1px solid rgba(10, 77, 104, 0.15);
+     border-bottom: 1px solid rgba(10, 77, 104, 0.1);
+     border-bottom-left-radius: 0;
+     border-bottom-right-radius: 0;
 }
-.raw-pollutants-container {
-    padding: 10px 15px;
-    font-size: 0.85em;
-    background-color: rgba(255,255,255,0.5); /* Slightly different bg for content */
-    border-radius: 0 0 6px 6px;
-}
-.raw-pollutant-value {
-    margin: 3px 0;
-    color: #34495E;
+.raw-pollutants-summary:hover {
+    background-color: rgba(220, 235, 250, 0.6); /* Slightly darker hover for summary */
 }
 
+/* NEW STYLES for the flowing pills/tags */
+.raw-pollutants-pills-container { /* Replaces -list-container */
+    padding: 15px;
+    display: flex;         /* Use flexbox for items */
+    flex-wrap: wrap;       /* Allow pills to wrap to the next line */
+    gap: 8px 10px;         /* Vertical and horizontal gap between pills */
+    align-items: center;   /* Align pills nicely if they have different heights */
+    /* background-color: rgba(255,255,255,0.3); /* Optional: subtle bg if needed */
+}
+
+.pollutant-pill {
+    display: inline-flex; /* Makes the pill only as wide as its content + padding */
+    align-items: baseline; /* Aligns text nicely if font sizes differ */
+    padding: 5px 10px;
+    border-radius: 12px; /* More rounded for a "pill" shape */
+    background-color: #E6F7FF; /* Light background for the pill */
+    border: 1px solid #B0E0FF;   /* Light blue border */
+    font-size: 0.85em; /* Base size for text in pill */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    white-space: nowrap; /* Prevent text within a pill from wrapping */
+}
+
+.pollutant-pill-name {
+    font-weight: 600;
+    color: #00629B;     /* Accent color for name */
+    margin-right: 4px;  /* Space between name and value */
+}
+
+.pollutant-pill-value {
+    color: #0A4D68;     /* Primary text color */
+    font-weight: 500;
+}
 
 .pollutant-risk-error { /* For error messages */
     color: #D32F2F;
@@ -614,10 +654,26 @@ body {
     font-weight: 500;
 }
 
+/* Responsive adjustments for the grid */
+@media (max-width: 1200px) { 
+    .main-content-grid {
+        grid-template-columns: repeat(2, 1fr); /* 2 columns */
+    }
+}
+@media (max-width: 768px) {
+    .control-bar { flex-direction: column; align-items: stretch; }
+    .city-dropdown-container { flex-basis: auto; margin-bottom: 15px; }
+    .current-weather-display { justify-content: center; }
+    .weather-text-info-expanded { align-items: center; }
+    .main-content-grid { 
+        grid-template-columns: 1fr; /* Single column */
+    }
+}
+
 /* Footer */
 .page-footer {
     text-align: center;
-    padding: 20px;
+    padding: 20px; /* Padding for the content INSIDE the footer bar */
     margin-top: auto; /* This makes the footer stick to the bottom in a flex container */
     background-color: rgba(255, 255, 255, 0.6);
     backdrop-filter: blur(8px);
@@ -625,12 +681,14 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.25);
     font-size: 0.85em;
     color: #0A4D68;
-    flex-shrink: 0; /* Prevents the footer from shrinking if content is too large */
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0; /* Prevent footer from shrinking */
 }
 
 .content-above-footer {
     display: flex;
     flex-direction: column;
-    flex-grow: 1;
-    min-height: 0; /* Important for flex behavior */
+    flex-grow: 1; 
+    min-height: 0; 
 }
