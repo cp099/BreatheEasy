@@ -152,7 +152,9 @@ app.layout = html.Div(className="app-shell", children=[
     # ---- START NEW WRAPPER for content above footer ----
     html.Div(className="content-above-footer", children=[
         html.Div(className="page-header", children=[
-            html.Div("LOGO", className="logo-placeholder")
+            html.Img(src=app.get_asset_url('breatheeasy_logo.png'), 
+             className="logo-image", 
+             alt="BreatheEasy Project Logo") 
         ]),
 
         html.Div(className="control-bar", children=[
