@@ -3,10 +3,13 @@
 """
 Handles interactions with the AQICN (World Air Quality Index Project) API.
 
-Provides functions to fetch raw real-time air quality data, extract specific
-current AQI values, and retrieve pollutant data along with interpreted health risks.
-Requires an AQICN_API_TOKEN environment variable (loaded from .env).
-API base URL is configurable via config/config.yaml.
+Provides functions to fetch real-time air quality data for specific cities.
+This includes the primary data fetcher, and wrappers to extract the current AQI
+value or to get interpreted health risks based on pollutant levels.
+
+Dependencies:
+- AQICN_API_TOKEN environment variable (loaded from .env).
+- API base URL is configured via config/config.yaml.
 """
 
 import requests
@@ -17,25 +20,28 @@ import sys
 import json
 
 # --- Setup Project Root Path ---
+# This allows the script to be run from anywhere and still find the project root.
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 except NameError:
+    # Fallback for environments where __file__ is not defined.
     PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname('.'), '..'))
     if not os.path.exists(os.path.join(PROJECT_ROOT, 'src')):
          PROJECT_ROOT = os.path.abspath('.')
 if PROJECT_ROOT not in sys.path:
      sys.path.insert(0, PROJECT_ROOT)
 
-# --- Import Configuration and Other Modules ---
+# --- Import Project Modules & Dependencies ---
+# The config_loader import also triggers the centralized logging setup.
 try:
     from src.config_loader import CONFIG
     from src.exceptions import APIKeyError, APITimeoutError, APINotFoundError, APIError, ConfigError
     from src.health_rules.interpreter import interpret_pollutant_risks
 except ImportError as e:
-    logging.basicConfig(level=logging.WARNING) # Basic logging if config_loader fails
+    # Fallback if dependencies or project structure are not found.
+    logging.basicConfig(level=logging.WARNING)
     logging.error(f"AQICN Client: Could not import dependencies. Error: {e}", exc_info=True)
-    # Define minimal fallbacks if imports fail
     CONFIG = {'apis': {'aqicn': {'base_url': "https://api.waqi.info/feed"}}, 'api_timeout_seconds': 10}
     class APIKeyError(Exception): pass
     class APITimeoutError(Exception): pass
@@ -45,49 +51,63 @@ except ImportError as e:
     def interpret_pollutant_risks(iaqi_data): 
         logging.error("Dummy interpret_pollutant_risks called due to import error.")
         return ["Pollutant interpretation unavailable."]
-except Exception as e: # Catch any other unexpected error during imports
+except Exception as e:
+     # Broad exception for other potential import errors.
      logging.basicConfig(level=logging.WARNING)
      logging.error(f"AQICN Client: Critical error importing dependencies: {e}", exc_info=True)
-     raise # Re-raise if it's a critical issue during startup beyond simple ImportErrors
+     raise
 
-# --- Get Logger ---
-# Logger is configured by config_loader.py when it's imported successfully.
-# If config_loader fails, the basicConfig above provides a fallback.
+
 log = logging.getLogger(__name__) 
 
-# --- Load API Token ---
+# --- Load API Token from .env file ---
 try:
-    # Construct path to .env file relative to PROJECT_ROOT
-    # This ensures it looks for .env in BREATHEEASY/ directory
+    # Looks for .env in the project root directory (e.g., BREATHEEASY/.env).
     dotenv_path = os.path.join(PROJECT_ROOT, '.env') 
     if os.path.exists(dotenv_path):
         loaded = load_dotenv(dotenv_path=dotenv_path)
         if loaded:
             log.info(f"AQICN Client: Loaded .env file from: {dotenv_path}")
-        # else: # No warning if .env exists but empty, load_dotenv handles this
-            # log.info(f"AQICN Client: .env file at {dotenv_path} processed (might be empty).")
     else:
         log.warning(f"AQICN Client: .env file not found at: {dotenv_path}. API keys must be set in environment.")
 except Exception as e:
     log.error(f"AQICN Client: Error loading .env file: {e}", exc_info=True)
 
 AQICN_TOKEN = os.getenv('AQICN_API_TOKEN')
-if not AQICN_TOKEN: # Log this once at module level if token is missing after attempting to load
+if not AQICN_TOKEN: 
+    # Log this warning once at module level if the token is missing.
     log.warning("AQICN_API_TOKEN is not set. AQICN API calls will likely fail with APIKeyError.")
 
 
 # --- Core API Data Fetching Function ---
 def get_city_aqi_data(city_name_query):
-    """Fetches full real-time AQI and pollutant data from the AQICN API.
-       Expects city_name_query to be just the city name (e.g., 'Delhi').
+    """
+    Fetches full real-time AQI and pollutant data from the AQICN API.
+
+    This is the low-level function that directly interacts with the API.
+
+    Args:
+        city_name_query (str): The city name to query (e.g., 'Delhi').
+
+    Returns:
+        dict | None: The full JSON response from the API if successful.
+                     Returns None if the API response indicates an "Unknown station".
+
+    Raises:
+        APIKeyError: If the AQICN_API_TOKEN is not configured.
+        ConfigError: If the AQICN base URL is not found in the config.
+        APITimeoutError: If the request times out.
+        APINotFoundError: If the API endpoint returns a 404 error.
+        APIError: For other API-related errors (e.g., non-200 status codes).
+        ValueError: If the API response is not valid JSON.
     """
     aqicn_base_url = CONFIG.get('apis', {}).get('aqicn', {}).get('base_url', "https://api.waqi.info/feed")
     api_timeout = CONFIG.get('api_timeout_seconds', 10)
 
-    if not AQICN_TOKEN: # This check is crucial before making the call
+    if not AQICN_TOKEN: 
         msg = "AQICN_API_TOKEN not found. Please set it in .env or environment variables."
         log.error(msg)
-        raise APIKeyError(msg, service="AQICN") # Raise specific error
+        raise APIKeyError(msg, service="AQICN")
     if not aqicn_base_url:
          msg = "AQICN base URL not found in configuration (config.yaml)."
          log.error(msg)
@@ -100,7 +120,7 @@ def get_city_aqi_data(city_name_query):
         response = requests.get(api_url, timeout=api_timeout)
         response.raise_for_status() 
         data = response.json()
-        # log.debug(f"Raw AQICN API response JSON for '{city_name_query}': {json.dumps(data, indent=2)}")
+        
 
         if data.get("status") == "ok":
             log.info(f"Successfully received 'ok' status from AQICN for '{city_name_query}'.")
@@ -108,6 +128,8 @@ def get_city_aqi_data(city_name_query):
         elif data.get("status") == "error":
             error_message = data.get("data", "Unknown API error reason")
             log.error(f"AQICN API returned error status for '{city_name_query}': {error_message}")
+            # The API returns 'error' status for "Unknown station", which is a valid,
+            # non-exceptional case we handle by returning None.
             if "Unknown station" in str(error_message):
                  log.warning(f"City/Station '{city_name_query}' resulted in 'Unknown station' from AQICN API.")
                  return None 
@@ -134,10 +156,11 @@ def get_city_aqi_data(city_name_query):
         msg = f"AQICN JSON decoding error for '{city_name_query}': {json_err}. Response snippet: {response_text_snippet}"
         log.error(msg); raise ValueError(msg) from json_err
 
-# --- Helper and Wrapper Functions ---
+
+# --- Wrapper Functions & Helpers ---
 
 def _extract_city_for_aqicn(city_name_full):
-    """Helper to get just the city name part for AQICN query if "City, Country" is passed."""
+    """Helper to get just the city name part if 'City, Country' is passed."""
     return city_name_full.split(',')[0].strip()
 
 def _create_error_dict_current_aqi(city_name_part, error_message, station_name="Error"):
@@ -145,12 +168,25 @@ def _create_error_dict_current_aqi(city_name_part, error_message, station_name="
     return {'city': city_name_part, 'aqi': None, 'station': station_name, 'time': None, 'error': error_message}
 
 def get_current_aqi_for_city(city_name_full): 
-    """Fetches and extracts current AQI. Expects city_name_full like 'Delhi, India'."""
+    """
+    Fetches and extracts the current AQI for a given city.
+
+    This is a high-level wrapper around get_city_aqi_data, designed for UI consumption.
+    It returns a standardized dictionary for both success and error cases.
+
+    Args:
+        city_name_full (str): The city name, typically in "City, Country" format (e.g., 'Delhi, India').
+
+    Returns:
+        dict: A dictionary containing either the AQI data or an error message.
+              Success: {'city': str, 'aqi': int, 'station': str, 'time': str}
+              Error:   {'city': str, 'aqi': None, 'station': str, 'time': None, 'error': str}
+    """
     city_query = _extract_city_for_aqicn(city_name_full)
     log.info(f"Getting current AQI (Sec 3) for '{city_name_full}' (querying AQICN as '{city_query}')")
     try:
         full_data_response = get_city_aqi_data(city_query)
-        if full_data_response is None: # "Unknown station"
+        if full_data_response is None: 
              return _create_error_dict_current_aqi(city_query, "Station not found by AQICN.", station_name="Unknown station")
 
         api_data = full_data_response.get("data", {})
@@ -176,7 +212,19 @@ def _create_error_dict_pollutant_risks(city_name_part, error_message):
     return {'city': city_name_part, 'time': None, 'pollutants': {}, 'risks': [], 'error': error_message}
 
 def get_current_pollutant_risks_for_city(city_name_full):
-    """Fetches pollutant data and interprets risks. Expects city_name_full like 'Delhi, India'."""
+    """
+    Fetches pollutant data and interprets their health risks.
+
+    High-level wrapper that returns a standardized dictionary for UI consumption.
+
+    Args:
+        city_name_full (str): The city name, typically in "City, Country" format.
+
+    Returns:
+        dict: A dictionary containing pollutant data and risks, or an error message.
+              Success: {'city': str, 'time': str, 'pollutants': dict, 'risks': list[str]}
+              Error:   {'city': str, 'time': None, 'pollutants': {}, 'risks': [], 'error': str}
+    """
     city_query = _extract_city_for_aqicn(city_name_full)
     log.info(f"Getting current pollutant risks (Sec 5) for '{city_name_full}' (querying AQICN as '{city_query}')")
     try:
@@ -202,8 +250,9 @@ def get_current_pollutant_risks_for_city(city_name_full):
          return _create_error_dict_pollutant_risks(city_query, 'Unexpected internal error.')
 
 
-# --- Example Usage Block (for direct script execution) ---
+# --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
+    # This block runs only when the script is executed directly, serving as a self-test.
     if not logging.getLogger().hasHandlers():
         logging.basicConfig(stream=sys.stdout, level=logging.INFO, 
                             format='%(asctime)s - [%(levelname)s] - %(name)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
@@ -213,18 +262,17 @@ if __name__ == "__main__":
     print(" Running api_integration/client.py Tests ")
     print("="*40 + "\n")
     
-    # Map simple city names (for AQICN query) to the "full name" format Dash might pass
     test_cities_map = {
         "Delhi": "Delhi, India",
         "Mumbai": "Mumbai, India",
         "Bangalore": "Bangalore, India",
-        "InvalidCityTest": "InvalidCityTest, UnknownCountry" # Used to test invalid city handling
+        "InvalidCityTest": "InvalidCityTest, UnknownCountry" 
     }
 
     for city_simple_query, city_full_input in test_cities_map.items():
         print(f"\n--- Testing for City Query: '{city_simple_query}' (Input to wrappers: '{city_full_input}') ---")
 
-        # Test 1: Fetching FULL data using get_city_aqi_data (expects simple city name)
+        # Test 1: Full data fetch
         print(f"\n[Test Case 1.1: get_city_aqi_data for '{city_simple_query}']")
         try:
             city_data_full = get_city_aqi_data(city_simple_query) 
@@ -238,20 +286,20 @@ if __name__ == "__main__":
             print(f"  ERROR during get_city_aqi_data test for '{city_simple_query}': {e_test}")
 
 
-        # Test 2: Fetching CURRENT AQI using wrapper (expects "City, Country" format)
+        # Test 2: Current AQI wrapper
         print(f"\n[Test Case 1.2: get_current_aqi_for_city for '{city_full_input}']")
         current_aqi_info = get_current_aqi_for_city(city_full_input)
-        if current_aqi_info and current_aqi_info.get('aqi') is not None and 'error' not in current_aqi_info: # Success if AQI present and no error key
+        if current_aqi_info and current_aqi_info.get('aqi') is not None and 'error' not in current_aqi_info: 
             print(f"  SUCCESS: Current AQI for {city_simple_query}: AQI: {current_aqi_info.get('aqi')}, Station: {current_aqi_info.get('station')}")
         elif current_aqi_info and current_aqi_info.get('error'):
              print(f"  Handled (Expected or Actual Error): Error for '{city_full_input}': {current_aqi_info.get('error')}")
         else:
             print(f"  FAILURE: Unexpected response for current AQI for '{city_full_input}'. Response: {current_aqi_info}")
 
-        # Test 3: Fetching CURRENT POLLUTANT RISKS using wrapper
+        # Test 3: Pollutant risks wrapper
         print(f"\n[Test Case 1.3: get_current_pollutant_risks_for_city for '{city_full_input}']")
         current_risks_info = get_current_pollutant_risks_for_city(city_full_input)
-        if current_risks_info and 'error' not in current_risks_info: # Success if no error key
+        if current_risks_info and 'error' not in current_risks_info: 
             print(f"  SUCCESS: Current Pollutant Risks for {city_simple_query}: Risks found: {len(current_risks_info.get('risks', []))}")
             if current_risks_info.get('risks'):
                 for risk in current_risks_info['risks']: print(f"    - {risk}")
@@ -264,11 +312,10 @@ if __name__ == "__main__":
     print("\n[Test Case 2: Manual API Key Missing Simulation]")
     print("  (To fully test APIKeyError, temporarily remove/comment AQICN_API_TOKEN in .env and re-run this script)")
     print("  Attempting call with (potentially) missing token to see if APIKeyError is raised by get_city_aqi_data...")
-    # This test relies on AQICN_TOKEN potentially being None if not set.
-    # A more robust test would mock os.getenv to return None.
+    
     if not AQICN_TOKEN:
         try:
-            get_city_aqi_data("Delhi") # Should raise APIKeyError if token is truly missing
+            get_city_aqi_data("Delhi") 
             print("  FAILURE (API Key Test): Expected APIKeyError, but no exception was raised.")
         except APIKeyError:
             print("  SUCCESS (API Key Test): Correctly caught APIKeyError for missing token.")

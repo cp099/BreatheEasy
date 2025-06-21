@@ -1,61 +1,60 @@
-# File: src/modeling/predictor.py (v3 - Historical Residual Correction)
-
+# File: src/modeling/predictor.py
 """
-Handles loading saved Prophet models (trained with weather regressors) and
-generating AQI forecasts incorporating weather forecasts and historical residuals.
+Handles loading saved Prophet models and generating AQI forecasts.
 
-Provides functions to:
-- Load city-specific Prophet models and their associated historical residual (with caching).
-- Generate forecasts including weather regressors and apply residual correction based on stored historical error.
-- Format the forecast output for easy UI consumption (JSON).
-- Interpret the forecast to provide predicted weekly health risks based on AQI levels.
-
-Relies on configuration for model paths/versions/regressors and external modules
-for Weather Forecast API access and AQI category interpretation.
+This module is the core of the prediction engine. Its primary responsibilities are:
+- Loading city-specific Prophet models and their associated metadata (e.g., historical residual).
+- Fetching multi-day weather forecasts to use as model regressors.
+- Generating a base AQI forecast using the model and weather data.
+- Applying a historical residual correction to refine the forecast.
+- Providing helper functions to format the forecast for UI consumption and to
+  interpret the forecast into human-readable weekly health risks.
 """
 
 import pandas as pd
 import os
 import sys
-import logging # Standard logging import
+import logging 
 import json
 import numpy as np
 from prophet import Prophet
 from prophet.serialize import model_from_json
 
-# --- Setup Path & Import Config/Exceptions ---
-# (Keep existing path setup logic)
+# --- Setup Project Root Path ---
+# This allows the script to be run from anywhere and still find the project root.
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 except NameError:
+    # Fallback for environments where __file__ is not defined.
     PROJECT_ROOT = os.path.abspath('.')
     if 'src' not in os.listdir(PROJECT_ROOT):
         alt_root = os.path.abspath(os.path.join(PROJECT_ROOT, '..'))
         if 'src' in os.listdir(alt_root): PROJECT_ROOT = alt_root
 if PROJECT_ROOT not in sys.path: sys.path.insert(0, PROJECT_ROOT)
 
+# --- Import Project Modules & Dependencies ---
+# The config_loader import also triggers the centralized logging setup.
 try:
     from src.config_loader import CONFIG
-    # NOTE: No longer need get_current_aqi_for_city from client.py for residual correction
-    from src.api_integration.weather_client import get_weather_forecast # Need forecast API
+    from src.api_integration.weather_client import get_weather_forecast 
     from src.health_rules.info import get_aqi_info
-    from src.exceptions import ModelFileNotFoundError, ModelLoadError, PredictionError, APIError, APITimeoutError, ConfigError # Add relevant API errors if needed by weather forecast
-    # Logging configured by config_loader
+    from src.exceptions import ModelFileNotFoundError, ModelLoadError, PredictionError, APIError, APITimeoutError, ConfigError 
 except ImportError as e:
+    # Fallback if dependencies or project structure are not found.
     logging.basicConfig(level=logging.WARNING)
     logging.error(f"Predictor: Could not import dependencies. Error: {e}", exc_info=True)
     CONFIG = {}
-    # Define dummy exceptions/functions
     class ModelFileNotFoundError(FileNotFoundError): pass
     class ModelLoadError(Exception): pass
     class PredictionError(Exception): pass
-    class APIError(Exception): pass # Keep APIError for weather forecast
-    class APITimeoutError(Exception): pass # Keep for weather forecast
+    class APIError(Exception): pass 
+    class APITimeoutError(Exception): pass 
     class ConfigError(Exception): pass
     def get_weather_forecast(city_name, days): logging.error("Weather forecast client unavailable."); return None
     def get_aqi_info(aqi_value): logging.error("AQI info unavailable."); return None
 except Exception as e:
+     # Broad exception for other potential import errors.
      logging.basicConfig(level=logging.WARNING)
      logging.error(f"Predictor: Error importing dependencies: {e}", exc_info=True)
      CONFIG = {}
@@ -69,12 +68,10 @@ except Exception as e:
      def get_aqi_info(aqi_value): logging.error("AQI info unavailable."); return None
 
 
-# --- Get Logger ---
-log = logging.getLogger(__name__)
-print("DEBUG: Reached end of imports") # DEBUG PRINT
 
-# --- Configuration Values ---
-# (Keep logic for getting config values)
+log = logging.getLogger(__name__)
+
+# --- Module Configuration ---
 relative_models_dir = CONFIG.get('paths', {}).get('models_dir', 'models')
 MODELS_DIR = os.path.join(PROJECT_ROOT, relative_models_dir)
 MODEL_VERSION = CONFIG.get('modeling', {}).get('prophet_model_version', 'v3_weather')
@@ -83,43 +80,40 @@ WEATHER_REGRESSORS_CONFIG = CONFIG.get('modeling', {}).get('weather_regressors',
 RESIDUAL_DECAY_FACTOR = CONFIG.get('modeling', {}).get('residual_decay_factor', 0.85)
 REALISTIC_MIN_AQI = CONFIG.get('modeling', {}).get('min_realistic_aqi', 1)
 
-# --- Model & Metadata Loading Cache ---
+# In-memory cache for loaded models and their metadata.
 _loaded_models_cache = {}
 _loaded_metadata_cache = {}
 
 def load_prophet_model_and_metadata(city_name, version=MODEL_VERSION, models_dir=MODELS_DIR):
     """
-    Loads a trained Prophet model and its associated metadata (containing historical residual).
-    Uses an in-memory cache for both model and metadata.
+    Loads a trained Prophet model and its associated metadata, using an in-memory cache.
 
     Args:
-        city_name (str): City name.
-        version (str, optional): Model version suffix. Defaults to config.
-        models_dir (str, optional): Model directory path. Defaults to config.
+        city_name (str): The city for which to load the model.
+        version (str): The model version suffix.
+        models_dir (str): The directory containing the model files.
 
     Returns:
-        tuple(Prophet, dict): A tuple containing:
-                              - The loaded Prophet model instance.
-                              - The loaded metadata dictionary (e.g., {'last_historical_residual': -5.2}).
-                              Returns (None, None) if either file cannot be loaded.
+        tuple[Prophet, dict]: A tuple containing the loaded Prophet model instance
+                              and the metadata dictionary (e.g., {'last_historical_residual': -5.2}).
 
     Raises:
         ModelFileNotFoundError: If the required model or metadata file doesn't exist.
-        ModelLoadError: If the model/metadata file exists but cannot be loaded/deserialized.
+        ModelLoadError: If a file exists but cannot be loaded or deserialized.
     """
     global _loaded_models_cache, _loaded_metadata_cache
 
     model_key = f"{city_name}_{version}"
     metadata_key = f"{city_name}_{version}_meta"
 
-    # Check cache first
+   
     cached_model = _loaded_models_cache.get(model_key)
     cached_metadata = _loaded_metadata_cache.get(metadata_key)
     if cached_model is not None and cached_metadata is not None:
         log.info(f"Returning cached model and metadata for {city_name} (v{version}).")
         return cached_model, cached_metadata
 
-    # --- Load Model ---
+    # --- Load Model from JSON file ---
     model_filename = f"{city_name}_prophet_model_{version}.json"
     model_path = os.path.join(models_dir, model_filename)
     log.info(f"Loading model for {city_name} (v{version}) from: {model_path}")
@@ -130,7 +124,7 @@ def load_prophet_model_and_metadata(city_name, version=MODEL_VERSION, models_dir
         with open(model_path, 'r') as fin:
             model = model_from_json(json.load(fin))
         log.info(f"Model for {city_name} loaded successfully.")
-        # Verify regressors (optional, keep as before)
+        
         loaded_regressors = set(model.extra_regressors.keys())
         expected_regressors = set(WEATHER_REGRESSORS_CONFIG)
         if loaded_regressors != expected_regressors:
@@ -139,15 +133,13 @@ def load_prophet_model_and_metadata(city_name, version=MODEL_VERSION, models_dir
         msg = f"Error loading model {model_path}: {e}"
         log.error(msg, exc_info=True); raise ModelLoadError(msg) from e
 
-    # --- Load Metadata (Historical Residual) ---
+    # --- Load Metadata (for historical residual) ---
     metadata_filename = f"{city_name}_prophet_metadata_{version}.json"
     metadata_path = os.path.join(models_dir, metadata_filename)
-    metadata = {"last_historical_residual": 0.0} # Default if file missing/corrupt
+    metadata = {"last_historical_residual": 0.0} # Default to no correction.
     log.info(f"Loading metadata for {city_name} (v{version}) from: {metadata_path}")
     if not os.path.exists(metadata_path):
-        # This might be an error or just mean correction is disabled
         log.warning(f"Metadata file not found: {metadata_path}. Residual correction will use 0.")
-        # Raise ModelFileNotFoundError(f"Metadata file not found: {metadata_path}") # Option: Make metadata required
     else:
         try:
             with open(metadata_path, 'r') as f:
@@ -159,20 +151,27 @@ def load_prophet_model_and_metadata(city_name, version=MODEL_VERSION, models_dir
                  log.warning(f"Key 'last_historical_residual' not found in {metadata_path}. Using 0.")
         except (json.JSONDecodeError, ValueError, TypeError, Exception) as e:
             log.error(f"Error loading or parsing metadata {metadata_path}: {e}. Using residual 0.", exc_info=True)
-            # Raise ModelLoadError(f"Error loading metadata {metadata_path}: {e}") from e # Option: Make metadata required
 
-    # Cache and return
     _loaded_models_cache[model_key] = model
     _loaded_metadata_cache[metadata_key] = metadata
     return model, metadata
 
 
-# --- Prediction Function (Using HISTORICAL Residual) ---
+
 def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_residual_correction=True):
-    """Generates AQI forecast using V3 model, aligned weather forecasts, and historical residual."""
+    """
+    Generates an AQI forecast using a trained model, weather forecasts, and historical residual correction.
+
+    This is the main prediction workflow:
+    1.  Loads the appropriate model and its historical residual value.
+    2.  Fetches a weather forecast for the required number of days.
+    3.  Prepares the weather data to be used as regressors.
+    4.  Generates a base forecast using the Prophet model.
+    5.  Applies the historical residual with decay to create an adjusted forecast.
+    """
     log.info(f"Generating {days_ahead}-day forecast WITH WEATHER for {target_city}...")
 
-    # 1. Load Model and Metadata
+    # 1. Load Model and Associated Metadata
     try:
         trained_model, model_metadata = load_prophet_model_and_metadata(target_city)
         if trained_model is None or model_metadata is None: raise ModelLoadError("Model/Metadata load failed.")
@@ -182,18 +181,16 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
     except (ModelFileNotFoundError, ModelLoadError) as e: log.error(f"Cannot forecast: {e}"); return None
     except Exception as e: log.error(f"Unexpected error loading model/meta: {e}", exc_info=True); return None
 
-    # 2. Determine Date Ranges
+    # 2. Fetch and Prepare Weather Forecast Data for Regressors
     try:
         last_train_date = trained_model.history_dates.max()
         today_actual_date = pd.Timestamp.now().normalize()
         start_target_forecast_date = today_actual_date + pd.Timedelta(days=1)
         end_target_forecast_date = today_actual_date + pd.Timedelta(days=days_ahead)
 
-        # Calculate total periods needed for prediction (from day after train end to forecast end)
         total_periods_needed = (end_target_forecast_date - last_train_date).days
         if total_periods_needed <= 0: raise PredictionError("Forecast end date not after last train date.")
 
-        # Create full future dates dataframe needed by Prophet internal prediction
         future_dates_df_full = trained_model.make_future_dataframe(periods=total_periods_needed, include_history=False)
         future_dates_df_full = future_dates_df_full[future_dates_df_full['ds'] > last_train_date].reset_index(drop=True)
         if future_dates_df_full.empty: raise PredictionError("make_future_dataframe created empty df.")
@@ -201,11 +198,10 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
 
     except Exception as e: log.error(f"Error creating future dates: {e}"); raise PredictionError(f"Date range failed: {e}") from e
 
-    # 3. Fetch & Prepare Weather Forecast Data for Regressors
+    # 3. Generate Initial Prophet Forecast
     if model_regressors:
         log.info("Fetching and preparing weather forecast regressors...")
         try:
-             # Fetch forecast first
              weather_api_query_city = target_city
              if target_city in CONFIG.get('modeling', {}).get('target_cities', []):
                   weather_api_query_city = f"{target_city}, India"
@@ -213,39 +209,30 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
              if not weather_forecast_list:
                   raise PredictionError(f"Weather forecast unavailable for {weather_api_query_city}.")
 
-             # Create the weather DataFrame immediately
              weather_forecast_df = pd.DataFrame(weather_forecast_list)
              if 'date' not in weather_forecast_df.columns:
                   raise PredictionError("Weather forecast response missing 'date' column.")
              weather_forecast_df['ds'] = pd.to_datetime(weather_forecast_df['date'])
              weather_forecast_df.set_index('ds', inplace=True) # Index by date
 
-             # Create the full future date range needed by Prophet for alignment
              full_date_range_index = pd.date_range(start=future_dates_df_full['ds'].min(), end=future_dates_df_full['ds'].max(), freq='D')
              aligned_weather_df = pd.DataFrame(index=full_date_range_index)
              aligned_weather_df.index.name = 'ds'
 
              log.info("Mapping forecast data and filling NaNs...")
-             # Now map from weather_forecast_df to aligned_weather_df
              for regressor in model_regressors:
                  source_col = None
-                 # --- *** START: MAPPING LOGIC - USER MUST VERIFY/EDIT *** ---
                  if regressor == 'temperature_2m':           source_col = 'avgtemp_c'
                  elif regressor == 'relative_humidity_2m':   source_col = 'avghumidity'
                  elif regressor == 'wind_speed_10m':         source_col = 'maxwind_kph'
-                 # Add mappings for other regressors if used
-                 # --- *** END: MAPPING LOGIC *** ---
 
                  if source_col and source_col in weather_forecast_df.columns:
-                     # Reindex the specific source column series to the full required date range
                      aligned_weather_df[regressor] = weather_forecast_df[source_col].reindex(aligned_weather_df.index)
-                     # Ensure numeric after reindex
                      aligned_weather_df[regressor] = pd.to_numeric(aligned_weather_df[regressor], errors='coerce')
                  else:
                      log.warning(f"No mapping or source data for regressor '{regressor}'. Column initialized with NaN.")
-                     aligned_weather_df[regressor] = np.nan # Initialize column if no source
+                     aligned_weather_df[regressor] = np.nan 
 
-             # Fill NaNs using ffill/bfill in the aligned dataframe
              cols_to_fill = list(aligned_weather_df.columns)
              if cols_to_fill:
                  if aligned_weather_df[cols_to_fill].isnull().any().any():
@@ -256,15 +243,13 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
                      else: log.info("Successfully filled future NaNs.")
                  else: log.info("No NaNs found in regressors after reindex/mapping.")
 
-             # Merge the processed weather data onto the future dates frame
              future_dates_df_full = pd.merge(
-                 future_dates_df_full[['ds']], # Original future dates
-                 aligned_weather_df.reset_index(), # Weather data with 'ds' column
+                 future_dates_df_full[['ds']], 
+                 aligned_weather_df.reset_index(), 
                  on='ds',
                  how='left'
              )
 
-             # Final check for required columns
              missing_final_cols = set(model_regressors) - set(future_dates_df_full.columns)
              if missing_final_cols: raise PredictionError(f"Final future df missing regressors after merge: {missing_final_cols}")
 
@@ -279,11 +264,9 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
     try:
         log.info(f"Generating Prophet forecast for {target_city}...")
         required_pred_cols = ['ds'] + model_regressors
-        # Use the potentially updated future_dates_df_full here
         if future_dates_df_full[required_pred_cols].isnull().any().any():
              nan_cols = future_dates_df_full[required_pred_cols].isnull().sum(); raise PredictionError(f"NaNs before predict: {nan_cols[nan_cols > 0].to_dict()}")
         log.debug(f"DataFrame sent to model.predict():\n{future_dates_df_full[required_pred_cols]}")
-        # Predict on the *full* range
         full_range_forecast = trained_model.predict(future_dates_df_full[required_pred_cols])
     except Exception as e: log.error(f"Failed Prophet predict step: {e}", exc_info=True); raise PredictionError(f"Prophet predict failed: {e}") from e
 
@@ -315,10 +298,18 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
     return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper', 'residual', 'yhat_adjusted']]
 
 
-# --- Helper Function for UI Formatting ---
-# (Keep format_forecast_for_ui exactly as it was)
+# --- UI and Risk Interpretation Helpers ---
+
 def format_forecast_for_ui(forecast_df):
-    """Formats forecast DataFrame into list of dicts for UI."""
+    """
+    Formats a forecast DataFrame into a simple list of dictionaries for UI display.
+
+    Args:
+        forecast_df: The DataFrame returned by `generate_forecast`.
+
+    Returns:
+        A list of dicts, e.g., [{'date': '2023-01-01', 'predicted_aqi': 150}, ...].
+    """
     if forecast_df is None or forecast_df.empty: return []
     ui_data = []
     for index, row in forecast_df.iterrows():
@@ -333,10 +324,19 @@ def format_forecast_for_ui(forecast_df):
              continue
     return ui_data
 
-# --- Function for Section 6 ---
-# (Keep get_predicted_weekly_risks exactly as it was)
 def get_predicted_weekly_risks(city_name, days_ahead=DEFAULT_FORECAST_DAYS):
-    """Generates forecast and interprets health implications."""
+    """
+    Generates a forecast and interprets its health implications for each day.
+
+    This high-level function is used by the UI to display predicted risks.
+
+    Args:
+        city_name: The city to generate risks for.
+        days_ahead: The number of days to forecast.
+
+    Returns:
+        A list of dictionaries, each containing date, AQI, and interpreted risk info.
+    """
     log.info(f"Getting predicted weekly risks (Section 6) for {city_name}...")
     forecast_df = None
     try:
@@ -360,60 +360,78 @@ def get_predicted_weekly_risks(city_name, days_ahead=DEFAULT_FORECAST_DAYS):
     log.info(f"Finished interpreting risks for {city_name}.")
     return predicted_risks_list
 
-# --- Example Usage Block (Modified Test 2) ---
+
+# --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
-    print("DEBUG: Entering __main__ block of predictor.py")
-    # (Keep logging setup)
-    if not logging.getLogger().handlers:
+    # This block runs only when the script is executed directly.
+    # It serves as a quick test and demonstration of the module's functions.
+    if not logging.getLogger().hasHandlers:
          logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
-         log = logging.getLogger(__name__)
-         log.info("Configured fallback logging for __main__ block.")
+         log.info("Configured fallback logging for direct script run of predictor.py.")
 
-    print("\n" + "="*30); print(" Running predictor.py Tests "); print("="*30 + "\n")
-    test_city = "Delhi"; days_to_forecast = CONFIG.get('modeling', {}).get('forecast_days', 3)
-    log.info(f"Using forecast horizon: {days_to_forecast} days")
-    forecast_api = None
+    print("\n" + "="*40)
+    print(" Running predictor.py Self-Test ")
+    print("="*40 + "\n")
+
+    test_city = "Delhi"
+    days_to_forecast = CONFIG.get('modeling', {}).get('forecast_days', 3)
+    print(f"--- Test Case: Generating {days_to_forecast}-day forecast for '{test_city}' ---")
+
     try:
-        print(f"\n--- Test 1: Predicting {days_to_forecast} days for '{test_city}' WITH Historical Residual Correction ---")
-        # Renamed test to reflect change
-        forecast_api = generate_forecast(test_city, days_ahead=days_to_forecast, apply_residual_correction=True)
-        if forecast_api is not None: print(forecast_api)
-        else: print(f"Failed test 1 for {test_city}")
+        # Test 1: Standard forecast with residual correction
+        print("\n[1] Generating forecast WITH historical residual correction...")
+        forecast_corrected = generate_forecast(
+            test_city,
+            days_ahead=days_to_forecast,
+            apply_residual_correction=True
+        )
+        if forecast_corrected is not None:
+            print(forecast_corrected[['ds', 'yhat', 'residual', 'yhat_adjusted']].round(2))
+        else:
+            print(f"--> FAILED: Could not generate corrected forecast for {test_city}.")
 
-        # Test 2 is now less relevant as manual override isn't the primary mechanism, but keep for demo
-        print(f"\n--- Test 2: Predicting {days_to_forecast} days WITHOUT Residual Correction ---")
-        forecast_raw = generate_forecast(test_city, days_ahead=days_to_forecast, apply_residual_correction=False)
-        if forecast_raw is not None: print(forecast_raw)
-        else: print(f"Failed test 2 for {test_city}")
+        # Test 2: Forecast without residual correction
+        print("\n[2] Generating forecast WITHOUT historical residual correction...")
+        forecast_raw = generate_forecast(
+            test_city,
+            days_ahead=days_to_forecast,
+            apply_residual_correction=False
+        )
+        if forecast_raw is not None:
+            print(forecast_raw[['ds', 'yhat', 'residual', 'yhat_adjusted']].round(2))
+        else:
+            print(f"--> FAILED: Could not generate raw forecast for {test_city}.")
 
-        # Renumber subsequent tests
-        print("\n--- Test 3: Formatting Forecast for UI ---")
-        if forecast_api is not None:
-            ui_formatted_data = format_forecast_for_ui(forecast_api)
-            print(f"UI Formatted Data for {test_city} (Hist. Corrected Forecast):"); import pprint; pprint.pprint(ui_formatted_data)
-        else: print("Skipping test 3 (forecast_api is None).")
+        # Test 3: UI Formatting
+        print("\n[3] Formatting forecast for UI...")
+        if forecast_corrected is not None:
+            ui_data = format_forecast_for_ui(forecast_corrected)
+            import pprint
+            pprint.pprint(ui_data)
+        else:
+            print("--> SKIPPED: Cannot format UI data because corrected forecast failed.")
 
-        print("\n--- Test 4: Getting Predicted Weekly Risks (Section 6) ---")
-        print(f"--- Getting predicted weekly risks for {test_city} ---")
+        # Test 4: Weekly Risk Generation
+        print("\n[4] Getting predicted weekly risks...")
         weekly_risks = get_predicted_weekly_risks(test_city, days_ahead=days_to_forecast)
-        if weekly_risks: import pprint; print("Predicted Weekly Risks/Implications:"); pprint.pprint(weekly_risks)
-        else: print(f"Could not generate predicted weekly risks for {test_city}.")
+        if weekly_risks:
+            import pprint
+            pprint.pprint(weekly_risks)
+        else:
+            print(f"--> FAILED: Could not generate predicted weekly risks for {test_city}.")
 
-        test_city_2 = "Mumbai"
-        model_version_test = CONFIG.get('modeling', {}).get('prophet_model_version', 'v3_weather')
-        models_dir_test = os.path.join(PROJECT_ROOT, CONFIG.get('paths', {}).get('models_dir', 'models'))
-        model_exists = os.path.exists(os.path.join(models_dir_test, f"{test_city_2}_prophet_model_{model_version_test}.json"))
-        if model_exists:
-             print(f"\n--- Test 5: Predicting {days_to_forecast} days for '{test_city_2}' WITH Historical Residual Correction ---")
-             forecast_mumbai = generate_forecast(test_city_2, days_ahead=days_to_forecast, apply_residual_correction=True)
-             if forecast_mumbai is not None: print(f"Forecast for {test_city_2}:\n{forecast_mumbai}")
-             else: print(f"Failed test 5 for {test_city_2}.")
-        else: print(f"\nSkipping Test 5: Model file for {test_city_2} version {model_version_test} not found.")
-
-        print("\n--- Test 6: Predicting for 'Atlantis' (No Model) ---")
+        # Test 5: Non-existent Model
+        print("\n[5] Testing for a city with no model ('Atlantis')...")
         forecast_none = generate_forecast("Atlantis", days_ahead=days_to_forecast)
-        if forecast_none is None: print("Success! Correctly returned None.")
-        else: print("Failure! Expected None.")
+        if forecast_none is None:
+            print("--> SUCCESS: Correctly returned None as expected.")
+        else:
+            print("--> FAILURE: Expected None but received a forecast.")
 
-    except Exception as e: print(f"\n!!! Error in main test block: {e} !!!"); log.error("Error in predictor.py __main__", exc_info=True)
-    print("\n" + "="*30); print(" predictor.py Tests Finished "); print("="*30 + "\n")
+    except Exception as e:
+        print(f"\n!!! AN ERROR OCCURRED DURING THE SELF-TEST: {e} !!!")
+        log.error("Error in predictor.py __main__ block", exc_info=True)
+
+    print("\n" + "="*40)
+    print(" predictor.py Self-Test Finished ")
+    print("="*40 + "\n")

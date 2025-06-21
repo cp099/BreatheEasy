@@ -1,4 +1,13 @@
-# File: tests/api_integration/test_weather_client.py (Corrected Assertions)
+
+# File: tests/api_integration/test_weather_client.py
+"""
+Unit and integration tests for the WeatherAPI.com client (`src/api_integration/weather_client.py`).
+
+This suite tests the client's ability to handle various API scenarios,
+including successful data retrieval, API-specific errors in JSON payloads,
+HTTP error codes, and network issues like timeouts, with a focus on verifying
+the built-in retry logic.
+"""
 
 import pytest
 import requests
@@ -8,7 +17,8 @@ import json
 from unittest.mock import MagicMock, patch
 import time
 
-# --- Path Setup ---
+# --- Setup Project Root Path ---
+# This allows the script to be run from anywhere and still find the project root.
 try:
     TEST_DIR = os.path.dirname(__file__); PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, '..', '..'))
 except NameError:
@@ -21,7 +31,7 @@ from src.api_integration.weather_client import get_current_weather, get_weather_
 from src.exceptions import APIKeyError, APITimeoutError, APINotFoundError, APIError
 from src.config_loader import CONFIG
 
-# --- Mock Data (Keep as is) ---
+# --- Mock Data Samples (Simulated API Responses) ---
 MOCK_SUCCESS_RESPONSE_DELHI_WEATHER = {"location": {"name": "Delhi", "country": "India"}, "current": {"temp_c": 27.2, "condition": {"text": "Mist"}}}
 MOCK_ERROR_CITY_NOT_FOUND_JSON = {"error": {"code": 1006, "message": "No location found matching parameter q"}}
 MOCK_ERROR_BAD_KEY_JSON = {"error": {"code": 2006, "message": "API key provided is invalid."}}
@@ -37,7 +47,7 @@ MOCK_FORECAST_SUCCESS_DELHI = {
     }
 }
 
-# --- Mock Helper (Keep as is) ---
+
 def mock_requests_get_setup(mocker, status_code=200, json_data=None, text_data=None, side_effect=None):
     mock_resp = MagicMock(spec=requests.Response)
     mock_resp.status_code = status_code
@@ -51,20 +61,24 @@ def mock_requests_get_setup(mocker, status_code=200, json_data=None, text_data=N
     else: return mocker.patch('requests.get', return_value=mock_resp)
 
 # --- Tests for get_current_weather ---
+
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_current_weather_success(mock_sleep, mocker):
+    """Test a successful API call for current weather."""
     mock_requests_get_setup(mocker, json_data=MOCK_SUCCESS_RESPONSE_DELHI_WEATHER)
     result = get_current_weather("Delhi, India")
     assert result["temp_c"] == 27.2
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
-def test_get_current_weather_city_not_found_json_error(mock_sleep, mocker): # API returns "error" in JSON
+def test_get_current_weather_city_not_found_json_error(mock_sleep, mocker): 
+    """Test handling of the API's 'city not found' error in a JSON response."""
     mock_requests_get_setup(mocker, json_data=MOCK_ERROR_CITY_NOT_FOUND_JSON)
     result = get_current_weather("Atlantisxyz")
-    assert result is None # Client handles 1006 by returning None
+    assert result is None 
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
-def test_get_current_weather_bad_api_key_json_error(mock_sleep, mocker): # API returns "error" in JSON
+def test_get_current_weather_bad_api_key_json_error(mock_sleep, mocker): 
+    """Test handling of the API's 'invalid key' error in a JSON response."""
     mock_requests_get_setup(mocker, json_data=MOCK_ERROR_BAD_KEY_JSON)
     with pytest.raises(APIKeyError) as excinfo:
         get_current_weather("Delhi, India")
@@ -72,7 +86,8 @@ def test_get_current_weather_bad_api_key_json_error(mock_sleep, mocker): # API r
     assert str(excinfo.value) == f"WeatherAPI API Error: {expected_msg_content} (Status: 401)"
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
-def test_get_current_weather_http_error_401(mock_sleep, mocker): # requests.get raises HTTPError 401
+def test_get_current_weather_http_error_401(mock_sleep, mocker): 
+    """Test that a 401 Unauthorized HTTP error raises an APIKeyError."""
     mock_requests_get_setup(mocker, status_code=401, text_data="Unauthorized")
     with pytest.raises(APIKeyError) as excinfo:
         get_current_weather("Delhi, India")
@@ -81,20 +96,21 @@ def test_get_current_weather_http_error_401(mock_sleep, mocker): # requests.get 
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_current_weather_http_error_400_generic(mock_sleep, mocker):
+    """Test that a generic 400 Bad Request HTTP error raises a standard APIError."""
     mock_resp = MagicMock(status_code=400, reason="Bad Request", text='{"error":{"code":9999,"message":"Some other generic bad request."}}')
     http_error = requests.exceptions.HTTPError(response=mock_resp)
     http_error.response = mock_resp 
     mocker.patch('requests.get', side_effect=http_error)
     
     test_city = "BadQuery"
-    context_in_client = "current weather" # Match the context string used in client.py
+    context_in_client = "current weather" 
     with pytest.raises(APIError) as excinfo:
         get_current_weather(test_city)
 
-    # This is the message passed to APIError constructor in the MODIFIED client.py for this case
-    base_message_from_client = f"HTTP error 400 for {context_in_client} query: '{test_city}'." # No "Detail:" part
     
-    # This is the fully formatted message that APIError (from exceptions.py) will have in its args[0]
+    base_message_from_client = f"HTTP error 400 for {context_in_client} query: '{test_city}'." 
+    
+    
     expected_full_exception_message = f"WeatherAPI API Error: {base_message_from_client} (Status: 400)"
     
     print(f"ACTUAL  : {repr(excinfo.value.args[0])}")
@@ -107,6 +123,7 @@ def test_get_current_weather_http_error_400_generic(mock_sleep, mocker):
     
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_current_weather_http_error_502_with_retries(mock_sleep, mocker):
+    """Test that the client retries on a 502 error and then fails with an APIError."""
     retries = CONFIG.get('api_retries',{}).get('weather_api_current', CONFIG.get('api_retries',{}).get('default',2))
     mock_resp = MagicMock(status_code=502); http_error = requests.exceptions.HTTPError(response=mock_resp); http_error.response = mock_resp
     mock_get = mock_requests_get_setup(mocker, side_effect=[http_error] * (retries + 1))
@@ -117,6 +134,7 @@ def test_get_current_weather_http_error_502_with_retries(mock_sleep, mocker):
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_current_weather_timeout_with_retries(mock_sleep, mocker):
+    """Test that the client retries on a timeout and then fails with an APITimeoutError."""
     retries = CONFIG.get('api_retries',{}).get('weather_api_current', CONFIG.get('api_retries',{}).get('default',2))
     mock_get = mock_requests_get_setup(mocker, side_effect=[requests.exceptions.Timeout("Simulated")] * (retries + 1))
     with pytest.raises(APITimeoutError) as excinfo: get_current_weather("Delhi, India")
@@ -126,6 +144,7 @@ def test_get_current_weather_timeout_with_retries(mock_sleep, mocker):
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_current_weather_network_error_with_retries(mock_sleep, mocker):
+    """Test that the client retries on a network error and then fails with an APIError."""
     retries = CONFIG.get('api_retries',{}).get('weather_api_current', CONFIG.get('api_retries',{}).get('default',2))
     err = requests.exceptions.ConnectionError("Simulated Network Down")
     mock_get = mock_requests_get_setup(mocker, side_effect=[err] * (retries + 1))
@@ -136,6 +155,7 @@ def test_get_current_weather_network_error_with_retries(mock_sleep, mocker):
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_current_weather_invalid_json(mock_sleep, mocker):
+    """Test that an invalid JSON response raises a ValueError."""
     mock_resp = MagicMock(status_code=200, text="Not JSON")
     json_err = json.JSONDecodeError("Expecting value", "Not JSON", 0)
     mock_resp.json.side_effect = json_err
@@ -146,20 +166,25 @@ def test_get_current_weather_invalid_json(mock_sleep, mocker):
     expected_msg = f"Invalid data format from WeatherAPI (current weather) for '{test_city}': {str(json_err)}. Response snippet: Not JSON"
     assert str(excinfo.value) == expected_msg
 
+
 # --- Tests for get_weather_forecast ---
+
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_weather_forecast_success(mock_sleep, mocker):
+    """Test a successful API call for a multi-day forecast."""
     mock_requests_get_setup(mocker, json_data=MOCK_FORECAST_SUCCESS_DELHI)
     result = get_weather_forecast("Delhi, India", days=3)
     assert len(result) == 3 and result[0]['avgtemp_c'] == 30.0
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_weather_forecast_city_not_found_json_error(mock_sleep, mocker):
+    """Test forecast handling of the API's 'city not found' error."""
     mock_requests_get_setup(mocker, json_data=MOCK_ERROR_CITY_NOT_FOUND_JSON)
     assert get_weather_forecast("Wakanda", days=3) is None
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_weather_forecast_bad_api_key_json_error(mock_sleep, mocker):
+    """Test forecast handling of the API's 'invalid key' error."""
     mock_requests_get_setup(mocker, json_data=MOCK_ERROR_BAD_KEY_JSON)
     with pytest.raises(APIKeyError) as excinfo: get_weather_forecast("Gotham", days=3)
     base_msg = f"Code {MOCK_ERROR_BAD_KEY_JSON['error']['code']}: {MOCK_ERROR_BAD_KEY_JSON['error']['message']}"
@@ -167,6 +192,7 @@ def test_get_weather_forecast_bad_api_key_json_error(mock_sleep, mocker):
 
 @patch('src.api_integration.weather_client.time.sleep', return_value=None)
 def test_get_weather_forecast_http_503_with_retries(mock_sleep, mocker):
+    """Test that the forecast client retries on a 503 error and then fails."""
     retries = CONFIG.get('api_retries',{}).get('weather_api_forecast', CONFIG.get('api_retries',{}).get('default',2))
     mock_resp = MagicMock(status_code=503); http_err = requests.exceptions.HTTPError(response=mock_resp); http_err.response = mock_resp
     mock_get = mock_requests_get_setup(mocker, side_effect=[http_err] * (retries + 1))

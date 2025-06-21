@@ -1,41 +1,49 @@
-# File: requirements.txt
+# ===================================================================
+# Python Package Requirements for the BreatheEasy Project
+# ===================================================================
+#
+# Use this file to install the required packages:
+# pip install -r requirements.txt
+#
+# It is recommended to install these in a virtual environment.
+# -------------------------------------------------------------------
 
-# Core Data Handling
+# --- Core Application & Web Framework ---
+# Dash is the main framework for the web user interface.
+dash
+dash-svg
+
+# --- Data Science & Modeling ---
+# Pandas and NumPy for data manipulation and numerical operations.
 pandas
 numpy
-
-# Plotting & Visualization
-matplotlib
-seaborn
-
-# Notebook Environment (for interactive development)
-notebook
-jupyterlab
-
-# Add other libraries later as needed:
-scikit-learn
-statsmodels
+# Prophet for time-series forecasting.
 prophet
-requests
-Flask
-Streamlit
-Dash 
-
-# For loading environment variables from .env file
-python-dotenv
-
-# Testing
-pytest
-pytest-mock
-
-# For YAML configuration files
-PyYAML
-
+# Holidays is a dependency of Prophet. Pinned to <1.0 to avoid breaking changes.
 holidays<1.0
 
-# for UI Development
-dash-bootstrap-components
-dash-core-components
-dash-html-components
-dash-table
-dash-svg
+# --- API & Web Requests ---
+# Used for making HTTP requests to external APIs (WeatherAPI, AQICN).
+requests
+
+# --- Configuration & Environment ---
+# For parsing YAML configuration files (config.yaml).
+PyYAML
+# For loading environment variables from the .env file (e.g., API keys).
+python-dotenv
+
+# --- Testing Framework ---
+# Pytest is used for running the automated test suite.
+pytest
+# Pytest-mock provides a convenient mocker fixture for tests.
+pytest-mock
+
+# --- Development & Data Analysis ---
+# These packages are useful for development, analysis, and visualization,
+# but are not strictly required to run the main application.
+# Matplotlib and Seaborn for plotting and data visualization.
+matplotlib
+seaborn
+# Jupyter for interactive notebook-based development.
+notebook
+jupyterlab

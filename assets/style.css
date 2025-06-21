@@ -1,9 +1,13 @@
+
 /* BREATHEEASY/assets/style.css */
+
+/* --- Base Layout & Typography --- */
+
 html, body {
     height: 100%;
     margin: 0;
     padding: 0;
-    overflow-x: hidden; /* Prevent horizontal scroll on body */
+    overflow-x: hidden; 
 }
 
 body {
@@ -12,7 +16,6 @@ body {
     color: #0A4D68;
     display: flex;
     flex-direction: column;
-    /* min-height: 100vh; /* Covered by height: 100% on html,body */
 }
 
 .app-shell { 
@@ -24,7 +27,8 @@ body {
     flex-grow: 1; 
 }
 
-/* Page Header */
+/* --- Page Header --- */
+
 .page-header {
     display: flex;
     justify-content: center;
@@ -59,7 +63,8 @@ body {
     width: auto;
 }
 
-/* Control Bar */
+/* --- Control Bar & Dropdown --- */
+
 .control-bar {
     display: flex;
     justify-content: space-between;
@@ -83,6 +88,8 @@ body {
     min-width: 200px;
     position: relative; /* Important for .Select-menu-outer positioning */
 }
+
+/* Dash Dropdown Specific Overrides */
 
 .city-dropdown .Select-control {
     background-color: rgba(255, 255, 255, 0.3) !important;
@@ -113,7 +120,8 @@ body {
     border-top-color: #0A4D68 !important;
 }
 
-/* Current Weather Display */
+/* --- Current Weather Display --- */
+
 .current-weather-display {
     flex: 1 1 auto; 
     display: flex;
@@ -135,7 +143,7 @@ body {
     border-radius: 5px;
 }
 
-.weather-text-info-expanded { /* Main container for weather text */
+.weather-text-info-expanded { 
     display: flex;
     flex-direction: column; 
     flex-grow: 1;
@@ -189,7 +197,8 @@ body {
     line-height: 1.2;
 }
 
-/* Main Content Grid */
+/* --- Main Content & Widget Cards --- */
+
 .main-content-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr); 
@@ -198,7 +207,6 @@ body {
     flex-grow: 1; 
 }
 
-/* Widget Card General Styling */
 .widget-card { 
     background-color: rgba(255, 255, 255, 0.75); 
     backdrop-filter: blur(12px); 
@@ -236,8 +244,6 @@ body {
     position: relative; 
 }
 
-/* Force the actual Plotly chart div (inside dcc.Graph) to also take full height */
-/* This might be needed if the inner Plotly div isn't expanding. */
 .flex-graph-container > .js-plotly-plot,
 .flex-graph-container > .plotly > .main-svg {
     height: 100% !important;
@@ -251,7 +257,6 @@ body {
     overflow-y: auto;  
     padding-right: 5px; 
     flex-grow: 1; 
-    /* background-color: lightblue; */ /* DEBUG: To see this container's bounds */
 }
 
 .aqi-definition-markdown {
@@ -299,7 +304,6 @@ body {
     .city-dropdown-container { flex-basis: auto; margin-bottom: 15px; }
     .current-weather-display { justify-content: center; }
     .weather-text-info-expanded { align-items: center; }
-    /* Removed .weather-secondary-info as it's not used */
     .main-content-grid { grid-template-columns: 1fr; }
 }
 
@@ -333,9 +337,9 @@ body {
 }
 
 .aqi-gauge-svg-container { 
-    width: 280px;  /* INCREASED from 180px - Should match SVG viewbox_size from app.py */
-    height: 170px; /* INCREASED from 100px - Adjusted for larger arc, approx viewbox_size * 0.6 for semi-circle */
-    margin-bottom: 10px; /* Adjusted space below gauge */
+    width: 280px;  
+    height: 170px; 
+    margin-bottom: 10px; 
     position: relative; 
 }
 
@@ -353,11 +357,9 @@ body {
 
 .aqi-gauge-track {
     stroke: #E9ECEF; 
-    /* stroke-width is set inline in app.py (e.g., 20) */
 }
 
 .aqi-gauge-value {
-    /* stroke color and stroke-width are set inline in app.py */
 }
 
 .aqi-svg-gauge .aqi-gauge-value-text {
@@ -407,61 +409,54 @@ body {
 
 /* Styling for Section 4: AQI Forecast Widget */
 .forecast-widget-content {
-    padding-top: 10px; /* Space from H3 title */
+    padding-top: 10px; 
     width: 100%;
-    max-height: 320px; /* Max height for the card list before scroll kicks in */
-                       /* This should be less than .widget-card min-height minus H3 height */
-    overflow-y: auto;  /* Enable vertical scrollbar if content exceeds max-height */
+    max-height: 320px;                      
+    overflow-y: auto;  
     display: flex;
     flex-direction: column;
-    gap: 10px; /* This will space out the .forecast-day-card elements */
+    gap: 10px;
 }
 
 .forecast-day-card {
-    /* borderLeft, backgroundColor are set inline via style attribute in app.py */
-    /* padding is set inline: 'padding': '12px 15px', */
-    /* borderRadius is set inline: 'borderRadius': '6px', */
-    /* marginBottom is handled by parent's gap */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.06); /* Softer shadow */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.06);
     transition: box-shadow 0.2s ease-in-out;
 }
 .forecast-day-card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.08); /* Slightly more pronounced shadow on hover */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08); 
 }
 
 .forecast-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px; /* Space if implications were present */
+    margin-bottom: 6px; 
 }
 
 .forecast-date {
-    font-size: 1em; /* Adjusted size */
+    font-size: 1em; 
     font-weight: 600;
     color: #0A4D68; 
 }
 
 .forecast-aqi-level {
-    font-size: 0.9em; /* Adjusted size */
-    font-weight: 500; /* Normal weight for level text part */
+    font-size: 0.9em; 
+    font-weight: 500; 
     padding: 2px 6px;
     border-radius: 4px;
-    /* The 'color' style (for text) is set inline based on aqi_color */
-    /* background-color: rgba(0,0,0,0.04); /* Optional very light bg for the tag itself */
 }
-.forecast-aqi-level > span[style*="fontWeight: bold"] { /* Target the AQI number if wrapped */
-    margin-right: 3px; /* Space between AQI number and (Level) */
+.forecast-aqi-level > span[style*="fontWeight: bold"] { 
+    margin-right: 3px;
 }
 
 
-/* Optional: If you add implications back to Section 4 cards */
+
 .forecast-implications {
     font-size: 0.85em;
     line-height: 1.4;
     color: #475569;
-    margin: 5px 0 0 0; /* Add top margin if header is present */
-    padding-left: 2px; /* Align with header text if border is present */
+    margin: 5px 0 0 0; 
+    padding-left: 2px;
 }
 
 .forecast-error-message { 
@@ -492,22 +487,22 @@ body {
 /* Styling for Section 5: Current Pollutant Risks Widget */
 .pollutant-risks-widget-content {
     padding: 15px;
-    height: 100%; /* Allow it to use card height */
+    height: 100%; 
     display: flex;
     flex-direction: column;
-    overflow-y: auto; /* Scroll if content exceeds card height */
+    overflow-y: auto; 
 }
 
 .pollutant-risk-title {
     font-size: 1.1em;
-    color: #0077B6; /* Match widget title */
+    color: #0077B6; 
     margin-bottom: 10px;
     border-bottom: 1px solid rgba(0, 123, 255, 0.2);
     padding-bottom: 5px;
 }
 
 .pollutant-risk-list {
-    list-style-type: none; /* Remove default bullets */
+    list-style-type: none; 
     padding-left: 0;
     margin-bottom: 15px;
 }
@@ -516,13 +511,13 @@ body {
     padding: 8px 0;
     font-size: 0.9em;
     line-height: 1.5;
-    border-bottom: 1px dashed rgba(10, 77, 104, 0.1); /* Light separator */
+    border-bottom: 1px dashed rgba(10, 77, 104, 0.1); 
 }
 .pollutant-risk-item:last-child {
     border-bottom: none;
 }
-.pollutant-risk-item strong { /* For pollutant name like PM2.5: */
-    color: #E74C3C; /* A warning-like color, or could be dynamic */
+.pollutant-risk-item strong { 
+    color: #E74C3C; 
     margin-right: 5px;
 }
 .pollutant-risk-item-none {
@@ -533,18 +528,17 @@ body {
 
 .pollutant-details-collapsible {
     margin-top: 15px;
-    border: 1px solid rgba(10, 77, 104, 0.1); /* Lighter border */
+    border: 1px solid rgba(10, 77, 104, 0.1); 
     border-radius: 6px;
-    background-color: rgba(248, 251, 255, 0.7); /* Very light background for the whole details block */
+    background-color: rgba(248, 251, 255, 0.7); 
 }
 .raw-pollutants-summary {
     padding: 10px 15px;
     font-weight: 600;
     font-size: 0.9em;
-    color: #005A8C; /* Darker blue for summary text */
+    color: #005A8C; 
     cursor: pointer;
-    /* background-color: rgba(230, 247, 255, 0.5); /* Removing specific bg, parent has one */
-    border-radius: 6px; /* Apply to top if not open */
+    border-radius: 6px; 
     outline: none; 
     display: block;
     transition: background-color 0.2s ease;
@@ -555,43 +549,42 @@ body {
      border-bottom-right-radius: 0;
 }
 .raw-pollutants-summary:hover {
-    background-color: rgba(220, 235, 250, 0.6); /* Slightly darker hover for summary */
+    background-color: rgba(220, 235, 250, 0.6); 
 }
 
-/* NEW STYLES for the flowing pills/tags */
-.raw-pollutants-pills-container { /* Replaces -list-container */
+
+.raw-pollutants-pills-container { 
     padding: 15px;
-    display: flex;         /* Use flexbox for items */
-    flex-wrap: wrap;       /* Allow pills to wrap to the next line */
-    gap: 8px 10px;         /* Vertical and horizontal gap between pills */
-    align-items: center;   /* Align pills nicely if they have different heights */
-    /* background-color: rgba(255,255,255,0.3); /* Optional: subtle bg if needed */
+    display: flex;         
+    flex-wrap: wrap;       
+    gap: 8px 10px;          
+    align-items: center;  
 }
 
 .pollutant-pill {
-    display: inline-flex; /* Makes the pill only as wide as its content + padding */
-    align-items: baseline; /* Aligns text nicely if font sizes differ */
+    display: inline-flex; 
+    align-items: baseline; 
     padding: 5px 10px;
-    border-radius: 12px; /* More rounded for a "pill" shape */
-    background-color: #E6F7FF; /* Light background for the pill */
-    border: 1px solid #B0E0FF;   /* Light blue border */
-    font-size: 0.85em; /* Base size for text in pill */
+    border-radius: 12px; 
+    background-color: #E6F7FF; 
+    border: 1px solid #B0E0FF;   
+    font-size: 0.85em; 
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    white-space: nowrap; /* Prevent text within a pill from wrapping */
+    white-space: nowrap;
 }
 
 .pollutant-pill-name {
     font-weight: 600;
-    color: #00629B;     /* Accent color for name */
-    margin-right: 4px;  /* Space between name and value */
+    color: #00629B;     
+    margin-right: 4px;  
 }
 
 .pollutant-pill-value {
-    color: #0A4D68;     /* Primary text color */
+    color: #0A4D68;     
     font-weight: 500;
 }
 
-.pollutant-risk-error { /* For error messages */
+.pollutant-risk-error { 
     color: #D32F2F;
     font-size: 0.9em;
     text-align: center;
@@ -599,19 +592,17 @@ body {
     font-weight: 500;
 }
 
-/* Styling for Section 6: Predicted Weekly Risks Widget */
+
 .predicted-risks-widget-content {
     padding-top: 10px;
     width: 100%;
-    max-height: 340px; /* Max height for the list area before scroll */
-                       /* Adjust based on typical content height of 3 days */
-    overflow-y: auto;  /* Vertical scroll if content is too long */
+    max-height: 340px; 
+    overflow-y: auto;  
 }
 
 .predicted-risk-day-card {
-    /* borderLeft, marginBottom, padding, borderRadius, backgroundColor are set inline */
     box-shadow: 0 2px 4px rgba(0,0,0,0.07);
-    transition: transform 0.2s ease-in-out; /* Subtle hover effect */
+    transition: transform 0.2s ease-in-out;
 }
 .predicted-risk-day-card:hover {
     transform: translateY(-2px);
@@ -627,7 +618,7 @@ body {
 .predicted-risk-date {
     font-size: 1.05em;
     font-weight: 600;
-    color: #0A4D68; /* Primary text color */
+    color: #0A4D68; 
 }
 
 .predicted-risk-aqi-level {
@@ -635,18 +626,16 @@ body {
     font-weight: 500;
     padding: 3px 7px;
     border-radius: 4px;
-    /* Text color is set inline, background can be added if needed */
-    /* background-color: rgba(0,0,0,0.05); */
 }
 
 .predicted-risk-implications {
     font-size: 0.85em;
     line-height: 1.5;
-    color: #475569; /* Content text color */
-    margin: 0; /* Reset paragraph margin */
+    color: #475569;
+    margin: 0;
 }
 
-.predicted-risk-error { /* For error messages */
+.predicted-risk-error {
     color: #D32F2F;
     font-size: 0.9em;
     text-align: center;
@@ -657,7 +646,7 @@ body {
 /* Responsive adjustments for the grid */
 @media (max-width: 1200px) { 
     .main-content-grid {
-        grid-template-columns: repeat(2, 1fr); /* 2 columns */
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 @media (max-width: 768px) {
@@ -666,15 +655,15 @@ body {
     .current-weather-display { justify-content: center; }
     .weather-text-info-expanded { align-items: center; }
     .main-content-grid { 
-        grid-template-columns: 1fr; /* Single column */
+        grid-template-columns: 1fr; 
     }
 }
 
 /* Footer */
 .page-footer {
     text-align: center;
-    padding: 20px; /* Padding for the content INSIDE the footer bar */
-    margin-top: auto; /* This makes the footer stick to the bottom in a flex container */
+    padding: 20px; 
+    margin-top: auto; 
     background-color: rgba(255, 255, 255, 0.6);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -683,7 +672,7 @@ body {
     color: #0A4D68;
     width: 100%;
     box-sizing: border-box;
-    flex-shrink: 0; /* Prevent footer from shrinking */
+    flex-shrink: 0; 
 }
 
 .content-above-footer {

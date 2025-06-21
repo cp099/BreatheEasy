@@ -1,25 +1,26 @@
+
 # File: src/health_rules/interpreter.py
-
 """
-Interprets potential health risks based on current pollutant concentration levels.
+Interprets health risks based on individual air pollutant concentrations.
 
-This module defines thresholds for various air pollutants (based on CPCB NAQI
-breakpoints) and provides a function to compare real-time pollutant data
-(typically from an API) against these thresholds to generate human-readable
-health risk warnings.
+This module defines health risk thresholds for various air pollutants, based
+on the Indian CPCB NAQI standard. It provides a function to compare real-time
+pollutant data against these thresholds to generate human-readable health
+risk advisories.
 """
 
-import logging # Standard logging import
+import logging 
 
-# --- Get Logger ---
 log = logging.getLogger(__name__)
-# Note: No direct dependency on CONFIG needed here.
 
-# --- Pollutant Thresholds and Associated Risks (Derived from CPCB NAQI Breakpoints) ---
-# Defines thresholds based on the *start* of CPCB concentration ranges for different
-# AQI categories (Moderate, Poor, Very Poor, Severe). The associated risks use language
-# adapted from the health impacts described for those *overall AQI categories*.
-# (Keep POLLUTANT_HEALTH_THRESHOLDS dictionary exactly as it was)
+# --- Pollutant Health Risk Thresholds ---
+# These thresholds are derived from the lower bounds of the CPCB NAQI concentration
+# ranges for different AQI categories (Moderate, Poor, Very Poor, Severe).
+# The associated "risk" text is adapted from the health implications for that
+# overall AQI category, providing a specific warning for each pollutant.
+# The thresholds are listed from highest to lowest severity. The logic in
+# interpret_pollutant_risks will use the first (and therefore highest)
+# threshold that a given value exceeds.
 POLLUTANT_HEALTH_THRESHOLDS = {
     "pm25": [ # PM2.5 (µg/m³)
         {"threshold": 251, "risk": "Serious respiratory impact on healthy people. Serious aggravation of heart or lung disease.", "severity": "Severe"},
@@ -60,39 +61,42 @@ POLLUTANT_HEALTH_THRESHOLDS = {
 }
 
 def interpret_pollutant_risks(iaqi_data):
-    """Analyzes individual pollutant levels and identifies potential health risks.
+    """
+    Analyzes individual pollutant levels to identify the highest potential health risk for each.
 
-    Compares pollutant values from the input dictionary (expected to be in the
-    format provided by the AQICN API's 'iaqi' field) against predefined
-    thresholds based on CPCB NAQI breakpoints. Returns a list of human-readable
-    warnings for pollutants exceeding their respective thresholds. Only the
-    warning corresponding to the highest severity threshold exceeded for each
-    pollutant is included.
+    Compares pollutant values from the input dictionary against the predefined
+    thresholds. For each pollutant present, it identifies the most severe risk
+    level exceeded and generates a corresponding advisory.
 
     Args:
-        iaqi_data (dict or None): A dictionary where keys are pollutant codes
-                                  (e.g., 'pm25', 'o3') and values are dictionaries
-                                  containing at least a 'v' key with the numerical
-                                  pollutant reading (e.g., {'v': 161}).
-                                  Handles None or empty dict as input.
+        iaqi_data (dict | None): A dictionary of pollutant data, typically from the
+                                 AQICN API's 'iaqi' field.
+                                 Example: {'pm25': {'v': 161}, 'o3': {'v': 45}}
 
     Returns:
-        list[str]: A list of strings, each describing a potential health risk.
-                   The format is typically "{POLLUTANT} ({Severity}): {Risk Description}".
-                   Returns an empty list if no thresholds are met or if input is invalid.
+        list[str]: A list of human-readable risk advisories for any pollutant
+                   exceeding a defined threshold. The format is:
+                   "{POLLUTANT} ({Severity}): {Risk Description}".
+                   Returns an empty list if no thresholds are met or input is invalid.
     """
     triggered_risks = []
     if not iaqi_data or not isinstance(iaqi_data, dict):
         log.warning("Invalid or empty iaqi_data received for interpretation.")
         return triggered_risks
+    
     log.info(f"Interpreting risks using CPCB-derived thresholds for iaqi data: {iaqi_data}")
+
+    # Iterate through each pollutant we have thresholds for.
     for pollutant, thresholds in POLLUTANT_HEALTH_THRESHOLDS.items():
         if pollutant in iaqi_data and isinstance(iaqi_data[pollutant], dict) and 'v' in iaqi_data[pollutant]:
             try:
                 value = float(iaqi_data[pollutant]['v'])
                 log.debug(f"Checking {pollutant.upper()} with value {value}")
+
+                # The thresholds are pre-sorted from highest to lowest.
+                # Find the first (i.e., most severe) threshold that the value meets or exceeds
                 highest_risk_found = None
-                for level_info in sorted(thresholds, key=lambda x: x['threshold'], reverse=True):
+                for level_info in sorted(thresholds, key=lambda x: x['threshold'], reverse=True): # Already sorted reverse=True
                     if value >= level_info["threshold"]:
                         highest_risk_found = f"{pollutant.upper()} ({level_info['severity']}): {level_info['risk']}"
                         log.info(f"Threshold exceeded for {pollutant.upper()} at value {value} (>= {level_info['threshold']}). Risk: {level_info['risk']}")
@@ -108,8 +112,45 @@ def interpret_pollutant_risks(iaqi_data):
         log.info("No significant pollutant thresholds exceeded based on CPCB-derived rules.")
     return triggered_risks
 
-# --- Example Usage Block ---
-# (Keep existing __main__ block as is)
+# --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
-    # ... (test code remains the same) ...
-    pass # Added pass for valid syntax if test code removed/commented
+    # This block is for direct script execution and serves as a simple self-test.
+    # It is not executed when the module is imported by other parts of the application.
+    # The comprehensive, automated tests for this module are in:
+    # tests/health_rules/test_interpreter.py
+
+    # Configure basic logging to see output from the function
+    logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
+
+    print("\n" + "="*40)
+    print(" Running interpreter.py Self-Test ")
+    print("="*40 + "\n")
+
+    # --- Test Cases ---
+    test_cases = {
+        "Clean Air": {'pm25': {'v': 20}, 'o3': {'v': 30}},
+        "Moderate PM2.5": {'pm25': {'v': 75.5}, 'co': {'v': 1.0}},
+        "Poor PM10 & Moderate O3": {'pm10': {'v': 255}, 'o3': {'v': 110}},
+        "Very Poor Multiple": {'pm25': {'v': 130}, 'no2': {'v': 300}},
+        "Severe SO2": {'so2': {'v': 1700}},
+        "Missing Pollutant Value": {'pm25': {'w': 100}}, # 'w' instead of 'v'
+        "Invalid Pollutant Value": {'co': {'v': 'high'}},
+        "Empty Input": {},
+        "None Input": None,
+    }
+
+    for name, data in test_cases.items():
+        print(f"--- Testing Case: {name} ---")
+        print(f"Input Data: {data}")
+        risks = interpret_pollutant_risks(data)
+        if risks:
+            print("  --> Identified Risks:")
+            for risk in risks:
+                print(f"    - {risk}")
+        else:
+            print("  --> No significant risks identified.")
+        print("-" * 20)
+
+    print("\n" + "="*40)
+    print(" interpreter.py Self-Test Finished ")
+    print("="*40 + "\n")

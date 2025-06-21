@@ -1,8 +1,14 @@
-# File: run_full_test.py (Updated for 3-day forecast)
+
+#File: run_full_test.py
 """
 Runs an end-to-end test of the BreatheEasy backend components for a selected city.
-Fetches live data and generates forecasts, displaying output in a text format
-that mimics the intended UI sections. Hides INFO level console logs for cleaner output.
+
+This script acts as a command-line-based "test harness" for the entire backend.
+It fetches live data from all APIs and generates a fresh forecast, displaying
+the output in a text format that mimics the intended UI sections.
+
+It also suppresses lower-level (INFO) log messages from the console to provide
+a cleaner, more readable report, while still writing detailed logs to the file.
 """
 
 import sys
@@ -11,8 +17,8 @@ import logging
 import pprint
 import pandas as pd
 
-# --- Setup Path ---
-# (Keep existing path setup)
+# --- Setup Project Root Path ---
+# This allows the script to be run from anywhere and still find the project root.
 PROJECT_ROOT = os.path.abspath('.')
 if 'src' not in os.listdir(PROJECT_ROOT):
      alt_root = os.path.abspath(os.path.join(PROJECT_ROOT, '..'))
@@ -20,7 +26,7 @@ if 'src' not in os.listdir(PROJECT_ROOT):
      else: print(f"ERROR: Cannot determine project root from CWD: {os.path.abspath('.')}"); sys.exit(1)
 if PROJECT_ROOT not in sys.path: sys.path.insert(0, PROJECT_ROOT)
 
-# --- Imports ---
+# --- Import Project Modules ---
 try:
     from src.config_loader import CONFIG
     from src.api_integration.weather_client import get_current_weather
@@ -32,13 +38,11 @@ try:
 except ImportError as e: print(f"ERROR: Could not import modules: {e}"); sys.exit(1)
 except Exception as e: print(f"ERROR during import/setup: {e}"); sys.exit(1)
 
-# --- Get Forecast Days from Config ---
-# Use the value set in config.yaml (should be 3)
+# --- Configuration ---
+# Get the forecast horizon from the main project config.
 FORECAST_DAYS = CONFIG.get('modeling', {}).get('forecast_days', 3)
 
-# --- Console Log Level Override ---
 def suppress_console_info_logs():
-    # (Keep existing function as is)
     try:
         root_logger = logging.getLogger(); found_console = False
         for handler in root_logger.handlers:
@@ -48,17 +52,15 @@ def suppress_console_info_logs():
         if not found_console: print("WARNING: Could not find console handler.")
     except Exception as e: print(f"WARNING: Failed to adjust console log level: {e}")
 
-# --- Main Display Function ---
-def display_all_sections(city_name_internal, city_name_weather, city_name_aqicn, days_to_forecast=FORECAST_DAYS): # Pass days
+def display_all_sections(city_name_internal, city_name_weather, city_name_aqicn, days_to_forecast=FORECAST_DAYS):
     """Fetches and displays data for all UI sections for the given city."""
     print(f"\n{'='*25} Generating Report for: {city_name_internal.upper()} ({days_to_forecast}-Day Forecast) {'='*25}")
 
-    # Section 0.5: Current Weather
+    # --- Section 0.5: Current Weather ---
     print("\n--- [ Section 0.5: Current Weather ] ---")
     try:
         weather_data = get_current_weather(city_name_weather)
         if weather_data:
-            # (Keep display logic as is)
             print(f"  Location:     {weather_data.get('city', 'N/A')}, {weather_data.get('country', 'N/A')}")
             print(f"  Conditions:   {weather_data.get('condition_text', 'N/A')}")
             print(f"  Temperature:  {weather_data.get('temp_c', 'N/A')}°C (Feels like {weather_data.get('feelslike_c', 'N/A')}°C)")
@@ -68,7 +70,7 @@ def display_all_sections(city_name_internal, city_name_weather, city_name_aqicn,
         else: print("  Weather data currently unavailable.")
     except Exception as e: print(f"  ERROR retrieving weather data: {e}"); log.error(f"Error Sec 0.5: {e}", exc_info=True)
 
-    # Section 1: Historical Summary
+    # --- Section 1: Historical Summary ---
     print("\n--- [ Section 1: Historical AQI Graph ] ---")
     try:
         hist_data_check = get_city_aqi_trend_data(city_name_internal)
@@ -76,19 +78,17 @@ def display_all_sections(city_name_internal, city_name_weather, city_name_aqicn,
         else: print("  (Historical data not available)")
     except Exception as e: print(f"  ERROR checking historical data: {e}"); log.error(f"Error Sec 1: {e}", exc_info=True)
 
-    # Section 2: Understanding AQI
+    # --- Section 2: Educational Info ---
     print("\n--- [ Section 2: Understanding AQI (CPCB Scale) ] ---")
-    # (Keep display logic as is)
     print(f"  Definition: {AQI_DEFINITION.strip()}")
     print("  Scale & Implications:")
     for category in AQI_SCALE: print(f"    - {category['level']} ({category['range']}): {category['implications']}")
 
-    # Section 3: Current City AQI
+    # --- Section 3: Current City AQI ---
     print("\n--- [ Section 3: Current AQI ] ---")
     try:
         current_aqi = get_current_aqi_for_city(city_name_aqicn)
         if current_aqi:
-             # (Keep display logic as is)
             aqi_val = current_aqi.get('aqi'); aqi_info = get_aqi_info(aqi_val) if aqi_val is not None else None
             level = f"({aqi_info['level']})" if aqi_info else "(Level Unknown)"; color = aqi_info['color'] if aqi_info else '#808080'
             print(f"  >>> Current AQI: {aqi_val} {level} [Color: {color}] <<<")
@@ -97,10 +97,9 @@ def display_all_sections(city_name_internal, city_name_weather, city_name_aqicn,
         else: print("  Current AQI data currently unavailable.")
     except Exception as e: print(f"  ERROR retrieving current AQI data: {e}"); log.error(f"Error Sec 3: {e}", exc_info=True)
 
-    # Section 4: AQI Forecast (Table/Dict) - UPDATED
-    print(f"\n--- [ Section 4: AQI Forecast (Next {days_to_forecast} Days) ] ---") # Update title
+    # --- Section 4: AQI Forecast ---
+    print(f"\n--- [ Section 4: AQI Forecast (Next {days_to_forecast} Days) ] ---") 
     try:
-        # Pass days_to_forecast to generate_forecast
         raw_forecast_df = generate_forecast(city_name_internal, days_ahead=days_to_forecast, apply_residual_correction=True)
         ui_forecast = format_forecast_for_ui(raw_forecast_df)
         if ui_forecast:
@@ -114,12 +113,11 @@ def display_all_sections(city_name_internal, city_name_weather, city_name_aqicn,
         else: print("  AQI forecast currently unavailable.")
     except Exception as e: print(f"  ERROR generating forecast data: {e}"); log.error(f"Error Sec 4: {e}", exc_info=True)
 
-    # Section 5: Current Pollutant Risks (Text)
+    # --- Section 5: Current Pollutant Risks ---
     print("\n--- [ Section 5: Current Pollutant Health Triggers ] ---")
     try:
         pollutant_risks = get_current_pollutant_risks_for_city(city_name_aqicn)
         if pollutant_risks:
-            # (Keep display logic as is)
             print(f"  (Based on data from: {pollutant_risks.get('time', 'N/A')})")
             if pollutant_risks.get('risks'):
                 print("  Potential Triggers:")
@@ -128,10 +126,9 @@ def display_all_sections(city_name_internal, city_name_weather, city_name_aqicn,
         else: print("  Current pollutant risk data currently unavailable.")
     except Exception as e: print(f"  ERROR retrieving current pollutant risks: {e}"); log.error(f"Error Sec 5: {e}", exc_info=True)
 
-    # Section 6: Predicted Weekly Risks (Table/Dict) - UPDATED
-    print(f"\n--- [ Section 6: Predicted Weekly Health Risks (Next {days_to_forecast} Days) ] ---") # Update title
+    # --- Section 6: Predicted Weekly Risks ---
+    print(f"\n--- [ Section 6: Predicted Weekly Health Risks (Next {days_to_forecast} Days) ] ---") 
     try:
-        # Pass days_to_forecast to get_predicted_weekly_risks
         predicted_risks = get_predicted_weekly_risks(city_name_internal, days_ahead=days_to_forecast)
         if predicted_risks:
              print("  Date        | Pred. AQI | Level         | Implications")
@@ -146,11 +143,11 @@ def display_all_sections(city_name_internal, city_name_weather, city_name_aqicn,
 
 # --- Main Execution Logic ---
 if __name__ == "__main__":
-    suppress_console_info_logs() # Call function to adjust logging level
+    suppress_console_info_logs() 
 
-    log.info("Starting end-to-end backend test script...") # Will only show in file log
+    log.info("Starting end-to-end backend test script...") # This will only show in the file log.
 
-    # Get available cities list
+    # Determine the list of cities to test.
     log.info("Attempting to get available cities...")
     available_cities = get_available_cities()
     if not available_cities:
@@ -163,6 +160,7 @@ if __name__ == "__main__":
         else: log.info(f"Using cities from config: {available_cities}")
     else: log.info(f"Using cities from historical data: {available_cities}")
 
+    # User selection loop.
     print("\nAvailable cities:")
     for i, city in enumerate(available_cities): print(f"  {i+1}. {city}")
 
@@ -170,6 +168,8 @@ if __name__ == "__main__":
         try:
             choice = input(f"Enter the number of the city (1-{len(available_cities)}) or city name: ")
             selected_city_internal = None
+
+            # Interpret user input as a number.
             try:
                 choice_num = int(choice)
                 if 1 <= choice_num <= len(available_cities): selected_city_internal = available_cities[choice_num - 1]
@@ -182,11 +182,13 @@ if __name__ == "__main__":
                      if base_city_maybe in available_cities: selected_city_internal = base_city_maybe; print(f"(Interpreted '{choice}' as base city '{selected_city_internal}')")
 
             if selected_city_internal:
+                 # The 'internal' name is used for our modeling and historical data.
+                 # The 'API query' names might need suffixes like ", India" for better results.
                  weather_api_query_city = selected_city_internal
                  aqicn_api_query_city = selected_city_internal
                  if selected_city_internal in CONFIG.get('modeling', {}).get('target_cities', []):
                       weather_api_query_city = f"{selected_city_internal}, India"
-                 log.warning(f"Selected internal city: '{selected_city_internal}'") # Use warning to show on console
+                 log.warning(f"Selected internal city: '{selected_city_internal}'") 
                  log.warning(f"Using query name for WeatherAPI: '{weather_api_query_city}'")
                  log.warning(f"Using query name for AQICN: '{aqicn_api_query_city}'")
 
@@ -197,7 +199,7 @@ if __name__ == "__main__":
                      city_name_aqicn=aqicn_api_query_city,
                      days_to_forecast=FORECAST_DAYS # Use variable from config
                  )
-                 break
+                 break# Exit the loop after a successful run.
             else: print(f"City '{choice}' not found or invalid selection. Please try again.")
         except KeyboardInterrupt: print("\nExiting."); break
         except Exception as e: print(f"\nAn unexpected error occurred: {e}"); log.error("Error in main loop", exc_info=True); break
