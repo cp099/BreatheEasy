@@ -28,6 +28,7 @@ import traceback
 import numpy as np
 import math
 import dash_svg
+from datetime import timedelta
 
 # --- Setup Project Root Path ---
 # This ensures that the application can find the 'src' directory for imports,
@@ -194,6 +195,17 @@ app.layout = html.Div(className="app-shell", children=[
             # --- Row 1 ---
             html.Div(className="widget-card", id="section-1-hist-summary", children=[
                 html.H3("Historical Summary"),
+			 dcc.Dropdown(
+			         id='range-dropdown',
+			         options=[
+			             {'label': 'All', 'value': 'All'},
+			             {'label': 'Past 6 Months', 'value': 'Past 6 Months'},
+			             {'label': 'Past Month', 'value': 'Past Month'},
+			             {'label': 'Past Week', 'value': 'Past Week'},
+			         ],
+			         value='All',  # default value
+			         placeholder="Select Time Range"
+			     ),
                 dcc.Graph(
                     id='historical-aqi-trend-graph',
                     figure={},
@@ -330,61 +342,81 @@ def update_current_weather(selected_city):
 
 @app.callback(
     Output('historical-aqi-trend-graph', 'figure'),
-    [Input('city-dropdown', 'value')]
+    Input('city-dropdown', 'value'), 
+    Input('range-dropdown', 'value')
 )
-def update_historical_trend_graph(selected_city):
+def update_historical_trend_graph(selected_city, selected_range):
     """Fetches historical data and generates a time-series graph for the selected city."""
-    # Inner helper function to create a placeholder graph on error or no data.
+
+    # inner helper function to create a placeholder graph on error or no data.
     def create_placeholder_figure(message_text, height=300):
         fig = go.Figure()
         fig.update_layout(annotations=[dict(text=message_text, showarrow=False, font=dict(size=14, color="#0A4D68"))],
                           xaxis_visible=False, yaxis_visible=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=height)
         return fig
-
+    
     if not selected_city: return create_placeholder_figure("Select a city to view historical AQI trend")
-
+    
     try:
         aqi_trend_series = get_city_aqi_trend_data(selected_city)
         if aqi_trend_series is None or aqi_trend_series.empty:
             return create_placeholder_figure(f"No historical data available for {selected_city}")
-        
+    
         df_trend = aqi_trend_series.reset_index()
-        if not ({'Date', 'AQI'}.issubset(df_trend.columns)): 
+        if not ({'Date', 'AQI'}.issubset(df_trend.columns)):
             if len(df_trend.columns) == 2: df_trend.columns = ['Date', 'AQI']
             else: raise ValueError(f"DataFrame columns {df_trend.columns.tolist()} not as expected ('Date', 'AQI').")
-
+    
         df_trend['Date'] = pd.to_datetime(df_trend['Date'], errors='coerce')
         df_trend['AQI'] = pd.to_numeric(df_trend['AQI'], errors='coerce')
         if np.isinf(df_trend['AQI']).any(): df_trend.replace([np.inf, -np.inf], np.nan, inplace=True)
         df_trend.dropna(subset=['Date', 'AQI'], inplace=True)
         df_trend = df_trend.sort_values(by='Date').reset_index(drop=True)
-        
+    
         if df_trend.empty:
             return create_placeholder_figure(f"No valid data after cleaning for {selected_city}")
-
+    
+        # filter based on selected_range
+        latest_date = df_trend['Date'].max()
+    
+        if selected_range == 'Past Week':
+            cutoff_date = latest_date - timedelta(weeks=1)
+            df_trend = df_trend[df_trend['Date'] >= cutoff_date]
+        elif selected_range == 'Past Month':
+            cutoff_date = latest_date - timedelta(days=30)
+            df_trend = df_trend[df_trend['Date'] >= cutoff_date]
+        elif selected_range == 'Past 6 Months':
+            cutoff_date = latest_date - timedelta(days=182)  # roughly 6 months
+            df_trend = df_trend[df_trend['Date'] >= cutoff_date]
+        # else: show all (the default)
+    
+        if df_trend.empty:
+            return create_placeholder_figure(f"No data available for {selected_city} in selected range")
+    
         actual_aqi_min, actual_aqi_max = df_trend['AQI'].min(), df_trend['AQI'].max()
         x_values_for_plot, y_values_for_plot = df_trend['Date'].tolist(), df_trend['AQI'].tolist()
-
+    
         fig = go.Figure(data=[go.Scatter(x=x_values_for_plot, y=y_values_for_plot, mode='lines', name='AQI Trend', line_shape='linear')])
-        
+    
         yaxis_buffer = 0.1 * (actual_aqi_max - actual_aqi_min) if (actual_aqi_max - actual_aqi_min) > 0 else 10
         yaxis_min_range, yaxis_max_range = max(0, actual_aqi_min - yaxis_buffer), actual_aqi_max + yaxis_buffer
-        
-        graph_title = f"AQI Trend for {selected_city}" 
-
-        fig.update_layout(title_text=graph_title, title_x=0.5, title_font_size=14, 
-                          height=380, 
+    
+        graph_title = f"AQI Trend for {selected_city} ({selected_range})"
+    
+        fig.update_layout(title_text=graph_title, title_x=0.5, title_font_size=14,
+                          height=380,
                           xaxis_title="Date", yaxis_title="AQI Value", yaxis_range=[yaxis_min_range, yaxis_max_range],
                           margin=dict(l=50, r=20, t=40, b=40),
                           plot_bgcolor='rgba(255,255,255,0.8)', paper_bgcolor='rgba(0,0,0,0)', font_color="#0A4D68")
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue', tickfont_size=10) 
-        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue', tickfont_size=10) 
-        fig.update_traces(line=dict(color='#007bff', width=1.5), hovertemplate="<b>Date</b>: %{x|%Y-%m-%d}<br><b>AQI</b>: %{y:.0f}<extra></extra>")
-        
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue', tickfont_size=10)
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue', tickfont_size=10)
+        fig.update_traces(line=dict(color='#007bff', width=1.5),
+                          hovertemplate="<b>Date</b>: %{x|%Y-%m-%d}<br><b>AQI</b>: %{y:.0f}<extra></extra>")
+    
         return fig
     except Exception as e:
-        print(f"ERROR IN HISTORICAL TREND CALLBACK for {selected_city}:") 
-        traceback.print_exc() 
+        print(f"ERROR IN HISTORICAL TREND CALLBACK for {selected_city}:")
+        traceback.print_exc()
         return create_placeholder_figure(f"Error displaying trend for {selected_city}", height=380)
 # Note: Further callback implementation details are kept as is.
 
@@ -736,4 +768,4 @@ if __name__ == '__main__':
     # This block allows the app to be run directly using `python app.py`.
     # It's configured to be compatible with deployment platforms that use the PORT environment variable.
     port = int(os.environ.get("PORT", 8050))
-    app.run_server(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True)
