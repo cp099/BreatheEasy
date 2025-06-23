@@ -264,4 +264,3 @@ This project is distributed under the MIT License. See the `LICENSE` file for mo
 
 ---
 _This README was last updated on June 23, 2024._
----
