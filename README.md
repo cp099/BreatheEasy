@@ -147,7 +147,7 @@ BREATHEEASY/
 │ ├── test_info.py
 │ └── test_interpreter.py
 ├── .env                                                # Local environment variables (API keys). Not in git.
-├── .gitignore                                          #Specifies files for Git to ignore.
+├── .gitignore                                          # Specifies files for Git to ignore.
 ├── requirements.txt                                    # Python package dependencies.
 ├── run_full_test.py                                    # Script for end-to-end backend testing.
 ├── app.py                                              # Main Dash application file (UI and callbacks).
