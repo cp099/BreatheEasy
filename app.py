@@ -50,7 +50,7 @@ try:
     from src.health_rules.info import get_aqi_info 
     from src.modeling.predictor import generate_forecast, format_forecast_for_ui
     from src.api_integration.client import get_current_pollutant_risks_for_city
-    from src.modeling.predictor import get_predicted_weekly_risks 
+    from src.modeling.predictor import get_calibrated_forecast_and_risks
     from src.exceptions import APIError, ModelFileNotFoundError
 except ImportError as e:
     # This fallback is crucial for frontend development without a full backend setup.
@@ -524,97 +524,82 @@ def update_current_aqi_details(selected_city):
         ])
 # Note: Further callback implementation details are kept as is.
 
-
+# --- Section 4 & 6: Unified AQI Forecast and Predicted Risks ---
 @app.callback(
-    Output('aqi-forecast-table-content', 'children'), 
+    Output('aqi-forecast-table-content', 'children'),
+    Output('predicted-weekly-risks-content', 'children'),
     [Input('city-dropdown', 'value')]
 )
-def update_aqi_forecast_display(selected_city): 
-    """Generates and displays the 3-day AQI forecast for the selected city."""
+def update_all_forecast_widgets(selected_city):
+    """
+    A single, unified callback to generate and display the calibrated forecast
+    in both Section 4 and Section 6, ensuring consistency.
+    """
     if not selected_city:
-        return html.P("Select a city to view AQI forecast.", 
-                      style={'textAlign': 'center', 'marginTop': '20px'})
+        # Return an empty placeholder for both outputs if no city is selected.
+        placeholder = html.P("Select a city to view forecast.", style={'textAlign': 'center', 'marginTop': '20px'})
+        return placeholder, placeholder
 
     try:
-        days_to_forecast = 3 
-        forecast_df = generate_forecast(
-            target_city=selected_city, 
-            days_ahead=days_to_forecast, 
-            apply_residual_correction=True 
-        )
+        days_to_forecast = 3
+        # Call our new backend function that does all the work and returns two values.
+        weekly_risks_list, forecast_df = get_calibrated_forecast_and_risks(selected_city, days_ahead=days_to_forecast)
 
-        if forecast_df is None or forecast_df.empty:
-            return html.P(f"AQI forecast data is currently unavailable for {selected_city}.", 
-                          className="forecast-error-message")
-
-        list_of_daily_forecasts = format_forecast_for_ui(forecast_df)
-
-        if not list_of_daily_forecasts:
-            return html.P(f"Could not format forecast data for {selected_city}.",
-                          className="forecast-error-message")
-
-        forecast_cards = []
-        for day_forecast in list_of_daily_forecasts:
-            predicted_aqi_value = day_forecast.get('predicted_aqi')
-            forecast_date = day_forecast.get('date')
-
-            if predicted_aqi_value is None or forecast_date is None:
+        # --- Part 1: Build the content for Section 4 (AQI Forecast) ---
+        section_4_content = []
+        if forecast_df is not None and not forecast_df.empty:
+            # Use the existing helper to format the raw DataFrame.
+            list_of_daily_forecasts = format_forecast_for_ui(forecast_df)
+            forecast_cards_sec4 = []
+            for day_forecast in list_of_daily_forecasts:
+                aqi_val = day_forecast.get('predicted_aqi')
+                cat_info = get_aqi_info(aqi_val)
+                level = cat_info.get('level', 'N/A')
+                color = cat_info.get('color', '#DDDDDD')
+                card_style = {'borderLeft': f"7px solid {color}", 'padding': '12px 15px', 'borderRadius': '6px', 'backgroundColor': f"{color}1A"}
                 
-                continue 
+                forecast_cards_sec4.append(
+                    html.Div(style=card_style, className="forecast-day-card", children=[
+                        html.Div(className="forecast-card-header", children=[
+                            html.Strong(day_forecast.get('date'), className="forecast-date"),
+                            html.Span(children=["AQI: ", html.Span(f"{aqi_val}", style={'fontWeight': 'bold'}), f" ({level})"], className="forecast-aqi-level", style={'color': color})
+                        ])
+                    ])
+                )
+            section_4_content = forecast_cards_sec4
+        else:
+            # If the forecast fails, display an error message in Section 4.
+            section_4_content = html.P(f"AQI forecast data is currently unavailable for {selected_city}.", className="forecast-error-message")
 
-            category_info = get_aqi_info(predicted_aqi_value) 
-            aqi_level = category_info.get('level', 'N/A')
-            aqi_color = category_info.get('color', '#DDDDDD')
+        # --- Part 2: Build the content for Section 6 (Predicted Risks) ---
+        section_6_content = []
+        if weekly_risks_list:
+            risk_cards_sec6 = []
+            for day_risk in weekly_risks_list:
+                card_style = {'borderLeft': f"7px solid {day_risk.get('color', '#DDDDDD')}", 'padding': '10px 15px', 'borderRadius': '6px', 'backgroundColor': f"{day_risk.get('color', '#DDDDDD')}1A"}
+                risk_cards_sec6.append(
+                    html.Div(style=card_style, className="predicted-risk-day-card", children=[
+                        html.Div(className="predicted-risk-header", children=[
+                            html.Strong(day_risk.get('date', 'N/A'), className="predicted-risk-date"),
+                            html.Span(f"AQI: {day_risk.get('predicted_aqi', 'N/A')} ({day_risk.get('level', 'N/A')})", className="predicted-risk-aqi-level", style={'color': day_risk.get('color', '#333333')})
+                        ]),
+                        html.P(day_risk.get('implications', 'No specific implications provided.'), className="predicted-risk-implications")
+                    ])
+                )
+            section_6_content = html.Div(risk_cards_sec6)
+        else:
+            # If the forecast fails, display an error message in Section 6.
+            section_6_content = html.P(f"Predicted weekly risk data is currently unavailable for {selected_city}.", className="predicted-risk-error")
 
-            card_style = {
-                'borderLeft': f"7px solid {aqi_color}",
-                'marginBottom': '10px', 
-                'padding': '12px 15px', 
-                'borderRadius': '6px',
-                'backgroundColor': f"{aqi_color}1A" 
-            }
-            
-            forecast_cards.append(
-                html.Div(style=card_style, className="forecast-day-card", children=[
-                    html.Div(className="forecast-card-header", children=[
-                        html.Strong(forecast_date, className="forecast-date"),
-                        html.Span(
-                            children=[
-                                "AQI: ", 
-                                html.Span(f"{predicted_aqi_value}", style={'fontWeight': 'bold'}),
-                                f" ({aqi_level})"
-                            ], 
-                            className="forecast-aqi-level", 
-                            style={'color': aqi_color} 
-                        ) 
-                    ]),
-                ])
-            )
-        
-        if not forecast_cards:
-             return html.P(f"No forecast data to display for {selected_city} after formatting.",
-                          className="forecast-error-message")
+        # Return the content for both sections at the same time.
+        return section_4_content, section_6_content
 
-        return forecast_cards 
-
-    except ModelFileNotFoundError:
-        print(f"Dash App: ModelFileNotFoundError for {selected_city} forecast (Section 4).")
-        return html.P(f"AQI forecast model not available for {selected_city}.", 
-                      className="forecast-error-message")
-    except APIError as e: 
-        print(f"Dash App: APIError during forecast for {selected_city} (Section 4): {e}")
-        return html.P(f"Weather data for forecast unavailable for {selected_city}. Please try again.",
-                      className="forecast-error-message")
-    except PredictionError as pe:
-        print(f"Dash App: PredictionError for {selected_city} forecast (Section 4): {pe}")
-        return html.P(f"Could not generate forecast for {selected_city}: {pe}",
-                      className="forecast-error-message")
     except Exception as e:
-        print(f"Dash App: General error in forecast for {selected_city} (Section 4): {e}")
+        # If any unexpected error happens, show an error in both widgets.
+        print(f"Error in unified forecast callback for {selected_city}: {e}")
         traceback.print_exc()
-        return html.P(f"Error generating AQI forecast for {selected_city}.",
-                      className="forecast-error-message")
-# Note: Further callback implementation details are kept as is.
+        error_message = html.P("An error occurred while generating the forecast.", className="forecast-error-message")
+        return error_message, error_message
 
 @app.callback(
     Output('current-pollutant-risks-content', 'children'),
@@ -702,66 +687,6 @@ def update_pollutant_risks_display(selected_city):
 # Note: Further callback implementation details are kept as is.
 
 
-@app.callback(
-    Output('predicted-weekly-risks-content', 'children'),
-    [Input('city-dropdown', 'value')]
-)
-def update_predicted_risks_display(selected_city):
-    """Fetches current pollutant data and displays interpreted health risks."""
-    if not selected_city:
-        return html.P("Select a city to view predicted weekly risks.", 
-                      style={'textAlign': 'center', 'marginTop': '20px'})
-
-    try:
-        days_to_forecast = 3 
-        weekly_risks_list = get_predicted_weekly_risks(selected_city, days_ahead=days_to_forecast)
-
-        if not weekly_risks_list:
-            return html.P(f"Predicted weekly risk data is currently unavailable for {selected_city}.", 
-                          className="predicted-risk-error") 
-
-        risk_cards = []
-        for day_risk in weekly_risks_list:
-            card_style = {
-                'borderLeft': f"7px solid {day_risk.get('color', '#DDDDDD')}",
-                'marginBottom': '10px',
-                'padding': '10px 15px',
-                'borderRadius': '6px',
-                'backgroundColor': f"{day_risk.get('color', '#DDDDDD')}1A" 
-            }
-            risk_cards.append(
-                html.Div(style=card_style, className="predicted-risk-day-card", children=[
-                    html.Div(className="predicted-risk-header", children=[
-                        html.Strong(day_risk.get('date', 'N/A'), className="predicted-risk-date"),
-                        html.Span(f"AQI: {day_risk.get('predicted_aqi', 'N/A')} ({day_risk.get('level', 'N/A')})", 
-                                  className="predicted-risk-aqi-level", 
-                                  style={'color': day_risk.get('color', '#333333')}) 
-                    ]),
-                    html.P(day_risk.get('implications', 'No specific implications provided.'), 
-                           className="predicted-risk-implications")
-                ])
-            )
-        
-        return html.Div(risk_cards)
-
-    except ModelFileNotFoundError:
-        print(f"Dash App: ModelFileNotFoundError for {selected_city} weekly risk forecast.")
-        return html.P(f"Forecast model not available for {selected_city} to predict weekly risks.", 
-                      className="predicted-risk-error")
-    except APIError as e: 
-        print(f"Dash App: APIError during weekly risk forecast for {selected_city}: {e}")
-        return html.P(f"Weather data error for weekly risk forecast in {selected_city}. Please try again.",
-                      className="predicted-risk-error")
-    except PredictionError as pe:
-        print(f"Dash App: PredictionError for weekly risk forecast for {selected_city}: {pe}")
-        return html.P(f"Could not generate weekly risk forecast for {selected_city}: {pe}",
-                      className="predicted-risk-error")
-    except Exception as e:
-        print(f"Dash App: General error in weekly risk forecast for {selected_city}: {e}")
-        traceback.print_exc()
-        return html.P(f"Error generating predicted weekly risks for {selected_city}.",
-                      className="predicted-risk-error")
-# Note: Further callback implementation details are kept as is.
 
 # --- Run the Application ---
 if __name__ == '__main__':

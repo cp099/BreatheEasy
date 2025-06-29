@@ -37,7 +37,8 @@ if PROJECT_ROOT not in sys.path: sys.path.insert(0, PROJECT_ROOT)
 # The config_loader import also triggers the centralized logging setup.
 try:
     from src.config_loader import CONFIG
-    from src.api_integration.weather_client import get_weather_forecast 
+    from src.api_integration.client import get_current_aqi_for_city 
+    from src.api_integration.weather_client import get_weather_forecast
     from src.health_rules.info import get_aqi_info
     from src.exceptions import ModelFileNotFoundError, ModelLoadError, PredictionError, APIError, APITimeoutError, ConfigError 
 except ImportError as e:
@@ -52,6 +53,7 @@ except ImportError as e:
     class APITimeoutError(Exception): pass 
     class ConfigError(Exception): pass
     def get_weather_forecast(city_name, days): logging.error("Weather forecast client unavailable."); return None
+    def get_current_aqi_for_city(city_name): logging.error("AQI client unavailable."); return None
     def get_aqi_info(aqi_value): logging.error("AQI info unavailable."); return None
 except Exception as e:
      # Broad exception for other potential import errors.
@@ -79,6 +81,7 @@ DEFAULT_FORECAST_DAYS = CONFIG.get('modeling', {}).get('forecast_days', 3)
 WEATHER_REGRESSORS_CONFIG = CONFIG.get('modeling', {}).get('weather_regressors', [])
 RESIDUAL_DECAY_FACTOR = CONFIG.get('modeling', {}).get('residual_decay_factor', 0.85)
 REALISTIC_MIN_AQI = CONFIG.get('modeling', {}).get('min_realistic_aqi', 1)
+MAX_RESIDUAL_CAP = CONFIG.get('modeling', {}).get('max_residual_cap', 75)
 
 # In-memory cache for loaded models and their metadata.
 _loaded_models_cache = {}
@@ -191,7 +194,8 @@ def generate_forecast(target_city, days_ahead=DEFAULT_FORECAST_DAYS, apply_resid
         total_periods_needed = (end_target_forecast_date - last_train_date).days
         if total_periods_needed <= 0: raise PredictionError("Forecast end date not after last train date.")
 
-        future_dates_df_full = trained_model.make_future_dataframe(periods=total_periods_needed, include_history=False)
+        periods_for_prophet = max(1, total_periods_needed)
+        future_dates_df_full = trained_model.make_future_dataframe(periods=periods_for_prophet, include_history=False)
         future_dates_df_full = future_dates_df_full[future_dates_df_full['ds'] > last_train_date].reset_index(drop=True)
         if future_dates_df_full.empty: raise PredictionError("make_future_dataframe created empty df.")
         log.info(f"Model prediction range: {future_dates_df_full['ds'].min().date()} to {future_dates_df_full['ds'].max().date()}")
@@ -359,6 +363,170 @@ def get_predicted_weekly_risks(city_name, days_ahead=DEFAULT_FORECAST_DAYS):
         except Exception as e: log.error(...); continue
     log.info(f"Finished interpreting risks for {city_name}.")
     return predicted_risks_list
+
+# This new function will be the primary entry point for the UI to get forecasts.
+def get_calibrated_forecast_and_risks(city_name: str, days_ahead: int = 3):
+    """
+    Generates a calibrated forecast and interprets risks in a single, robust workflow.
+
+    This function orchestrates the entire prediction process by:
+    1. Fetching the real-time, live AQI value.
+    2. Getting the model's raw forecast for today to calculate a "live residual".
+    3. Generating the raw forecast for the future.
+    4. Applying the live residual (with decay) to the future forecast.
+    5. Interpreting the final, calibrated forecast into health risks.
+
+    Args:
+        city_name (str): The city to generate the forecast for.
+        days_ahead (int): The number of days to forecast.
+
+    Returns:
+        list[dict]: A list of dictionaries, each containing the final, calibrated
+                    data for one forecast day (date, AQI, level, implications, etc.).
+                    Returns an empty list if any critical step fails.
+    """
+    # --- Step 1: Fetch Live AQI ---
+    log.info(f"Starting calibrated forecast for '{city_name}'. Fetching live AQI...")
+    try:
+        # The client function expects the "City, Country" format for this API call.
+        live_aqi_data = get_current_aqi_for_city(f"{city_name}, India")
+        
+        # Check if the API call was successful and returned a valid AQI value.
+        if live_aqi_data and live_aqi_data.get('aqi') is not None:
+            live_aqi_value = live_aqi_data['aqi']
+            log.info(f"Successfully fetched live AQI for {city_name}: {live_aqi_value}")
+        else:
+            # If we can't get the live AQI, we cannot calibrate the forecast.
+            # We will log the error and return an empty list, signaling a failure.
+            error_msg = live_aqi_data.get('error', 'Live AQI value was None or missing.')
+            log.error(f"Cannot proceed with calibrated forecast for {city_name}: {error_msg}")
+            return [] # Return empty list to indicate failure
+    except Exception as e:
+        # Catch any other unexpected errors during the API call.
+        log.error(f"An unexpected error occurred while fetching live AQI for {city_name}: {e}", exc_info=True)
+        return [] # Return empty list to indicate failure
+
+    # --- Step 2: Calculate Live Residual ---
+    log.info(f"Getting model's raw prediction for today to calculate residual...")
+    try:
+        # We need to know the last date in the model's training history.
+        last_train_date = None
+        temp_model, _ = load_prophet_model_and_metadata(city_name)
+        if temp_model:
+            last_train_date = temp_model.history_dates.max()
+        else:
+            # This should not happen if the model is valid, but as a safeguard:
+            raise ModelLoadError("Failed to load model to determine last training date.")
+
+        # Calculate the number of days between the last training day and today.
+        days_since_training = (pd.Timestamp.now().normalize() - last_train_date).days
+        if days_since_training < 0:
+            log.warning("System time appears to be before the model's last training date. Residual cannot be calculated.")
+            # Fallback: We can't calculate a live residual, so we proceed without it.
+            live_residual = 0.0
+        else:
+            # Generate a forecast from the end of training up to today.
+            todays_forecast_df = generate_forecast(
+                target_city=city_name,
+                days_ahead=days_since_training,
+                apply_residual_correction=False # We want the RAW model output
+            )
+
+            if todays_forecast_df is None or todays_forecast_df.empty:
+                raise PredictionError("Generating today's forecast returned no data.")
+
+            # Get the model's prediction for today (the last row in the dataframe).
+            yhat_for_today = todays_forecast_df.iloc[-1]['yhat']
+
+            # This is the core calculation!
+            live_residual = live_aqi_value - yhat_for_today
+            log.info(f"Calculated raw live residual: {live_residual:.2f}")
+
+            # --- Apply Capping as a Sanity Check ---
+            if abs(live_residual) > MAX_RESIDUAL_CAP:
+                log.warning(f"Live residual {live_residual:.2f} exceeds cap of {MAX_RESIDUAL_CAP}. Capping it.")
+                live_residual = math.copysign(MAX_RESIDUAL_CAP, live_residual) # Keeps the sign (+ or -)
+
+            log.info(f"Final (capped) live residual to be applied: {live_residual:.2f}")
+
+    except (ModelFileNotFoundError, ModelLoadError, PredictionError) as e:
+        log.error(f"Could not calculate live residual for {city_name} due to modeling error: {e}. Proceeding without correction.")
+        live_residual = 0.0 # Default to no correction on error
+    except Exception as e:
+        log.error(f"Unexpected error calculating live residual for {city_name}: {e}. Proceeding without correction.", exc_info=True)
+        live_residual = 0.0 # Default to no correction on error
+
+    # --- Step 3: Generate and Apply Corrected Forecast ---
+        # --- Step 3: Generate the future forecast and apply the live residual ---
+    log.info(f"Generating {days_ahead}-day future forecast to apply live residual...")
+    try:
+        # Get the raw forecast for the next N days.
+        future_forecast_df = generate_forecast(
+            target_city=city_name,
+            days_ahead=days_ahead,
+            apply_residual_correction=False # MUST be False, we are doing our own correction
+        )
+
+        if future_forecast_df is None or future_forecast_df.empty:
+            raise PredictionError("Generating the future forecast returned no data.")
+
+        # Apply the live residual with a decay factor.
+        # This makes the correction strongest for tomorrow and weaker for subsequent days.
+        if live_residual != 0.0:
+            log.info(f"Applying live residual ({live_residual:.2f}) with decay factor ({RESIDUAL_DECAY_FACTOR}) to future forecast.")
+            # Create a list of decaying residual values.
+            decaying_residuals = [live_residual * (RESIDUAL_DECAY_FACTOR ** i) for i in range(len(future_forecast_df))]
+            # Add them to the DataFrame.
+            future_forecast_df['live_residual_applied'] = decaying_residuals
+            future_forecast_df['yhat_adjusted'] = (future_forecast_df['yhat'] + future_forecast_df['live_residual_applied']).clip(lower=REALISTIC_MIN_AQI)
+        else:
+            # If there was no residual to apply, the adjusted value is the same as the raw value.
+            log.info("No live residual to apply. Using raw model forecast.")
+            future_forecast_df['yhat_adjusted'] = future_forecast_df['yhat'].clip(lower=REALISTIC_MIN_AQI)
+        
+        log.info("Successfully generated calibrated forecast.")
+
+    except (ModelFileNotFoundError, ModelLoadError, PredictionError) as e:
+        log.error(f"Could not generate calibrated forecast for {city_name} due to modeling error: {e}")
+        return [] # Return empty list on failure
+    except Exception as e:
+        log.error(f"Unexpected error generating calibrated forecast for {city_name}: {e}", exc_info=True)
+        return []
+
+    # --- Step 4: Interpret risks from the final calibrated forecast ---
+    log.info(f"Interpreting health risks for the calibrated forecast...")
+    predicted_risks_list = []
+    for _, row in future_forecast_df.iterrows():
+        try:
+            # Use the newly calculated 'yhat_adjusted' for risk interpretation.
+            predicted_aqi = int(round(row['yhat_adjusted']))
+            forecast_date = pd.to_datetime(row['ds']).strftime('%Y-%m-%d')
+            
+            aqi_category_info = get_aqi_info(predicted_aqi)
+            if aqi_category_info:
+                predicted_risks_list.append({
+                    "date": forecast_date,
+                    "predicted_aqi": predicted_aqi,
+                    "level": aqi_category_info.get("level", "N/A"),
+                    "color": aqi_category_info.get("color", "#FFFFFF"),
+                    "implications": aqi_category_info.get("implications", "N/A")
+                })
+            else:
+                # Fallback for unexpected cases where get_aqi_info might fail.
+                log.warning(f"Could not get AQI info for value {predicted_aqi}. Using fallback.")
+                predicted_risks_list.append({
+                    "date": forecast_date,
+                    "predicted_aqi": predicted_aqi,
+                    "level": "Unknown",
+                    "color": "#808080", # Gray color for unknown
+                    "implications": "Category could not be determined."
+                })
+        except (ValueError, TypeError) as e:
+            log.warning(f"Skipping risk interpretation for a row due to data issue: {e}. Row: {row}")
+            continue
+            
+    log.info(f"Finished generating calibrated risks for {city_name}.")
+    return predicted_risks_list, future_forecast_df
 
 
 # --- Example Usage / Direct Execution ---
