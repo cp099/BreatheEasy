@@ -19,6 +19,7 @@ import json
 import numpy as np
 from prophet import Prophet
 from prophet.serialize import model_from_json
+import math
 
 # --- Setup Project Root Path ---
 # This allows the script to be run from anywhere and still find the project root.
@@ -82,6 +83,7 @@ WEATHER_REGRESSORS_CONFIG = CONFIG.get('modeling', {}).get('weather_regressors',
 RESIDUAL_DECAY_FACTOR = CONFIG.get('modeling', {}).get('residual_decay_factor', 0.85)
 REALISTIC_MIN_AQI = CONFIG.get('modeling', {}).get('min_realistic_aqi', 1)
 MAX_RESIDUAL_CAP = CONFIG.get('modeling', {}).get('max_residual_cap', 75)
+LIVE_RESIDUAL_WEIGHT = CONFIG.get('modeling', {}).get('live_residual_weight', 0.6) # 60% weight to live, 40% to historical
 
 # In-memory cache for loaded models and their metadata.
 _loaded_models_cache = {}
@@ -385,6 +387,13 @@ def get_calibrated_forecast_and_risks(city_name: str, days_ahead: int = 3):
                     data for one forecast day (date, AQI, level, implications, etc.).
                     Returns an empty list if any critical step fails.
     """
+    # --- Step 0: Load Model Metadata to get historical residual ---
+    try:
+        _, model_metadata = load_prophet_model_and_metadata(city_name)
+    except (ModelFileNotFoundError, ModelLoadError):
+        log.error(f"Cannot load metadata for {city_name}. Blended residual will not be used.")
+        model_metadata = {}
+
     # --- Step 1: Fetch Live AQI ---
     log.info(f"Starting calibrated forecast for '{city_name}'. Fetching live AQI...")
     try:
@@ -449,12 +458,19 @@ def get_calibrated_forecast_and_risks(city_name: str, days_ahead: int = 3):
 
             log.info(f"Final (capped) live residual to be applied: {live_residual:.2f}")
 
-    except (ModelFileNotFoundError, ModelLoadError, PredictionError) as e:
-        log.error(f"Could not calculate live residual for {city_name} due to modeling error: {e}. Proceeding without correction.")
-        live_residual = 0.0 # Default to no correction on error
     except Exception as e:
         log.error(f"Unexpected error calculating live residual for {city_name}: {e}. Proceeding without correction.", exc_info=True)
         live_residual = 0.0 # Default to no correction on error
+
+    # --- NEW: Calculate the Blended Residual ---
+    # Get the model's long-term historical residual from its metadata.
+    # Note: This requires a slight modification to the start of this function.
+    historical_residual = model_metadata.get("last_historical_residual", 0.0)
+    log.info(f"Model's historical residual is: {historical_residual:.2f}")
+
+    # Create the blended residual.
+    blended_residual = (live_residual * LIVE_RESIDUAL_WEIGHT) + (historical_residual * (1 - LIVE_RESIDUAL_WEIGHT))
+    log.info(f"Blended Residual Calculation: ({live_residual:.2f} * {LIVE_RESIDUAL_WEIGHT}) + ({historical_residual:.2f} * {1-LIVE_RESIDUAL_WEIGHT:.2f}) = {blended_residual:.2f}")
 
     # --- Step 3: Generate and Apply Corrected Forecast ---
         # --- Step 3: Generate the future forecast and apply the live residual ---
@@ -472,13 +488,10 @@ def get_calibrated_forecast_and_risks(city_name: str, days_ahead: int = 3):
 
         # Apply the live residual with a decay factor.
         # This makes the correction strongest for tomorrow and weaker for subsequent days.
-        if live_residual != 0.0:
-            log.info(f"Applying live residual ({live_residual:.2f}) with decay factor ({RESIDUAL_DECAY_FACTOR}) to future forecast.")
-            # Create a list of decaying residual values.
-            decaying_residuals = [live_residual * (RESIDUAL_DECAY_FACTOR ** i) for i in range(len(future_forecast_df))]
-            # Add them to the DataFrame.
-            future_forecast_df['live_residual_applied'] = decaying_residuals
-            future_forecast_df['yhat_adjusted'] = (future_forecast_df['yhat'] + future_forecast_df['live_residual_applied']).clip(lower=REALISTIC_MIN_AQI)
+        if blended_residual != 0.0:
+            log.info(f"Applying blended residual ({blended_residual:.2f}) with decay to future forecast.")
+            # The exponent 'i' starts at 0...
+            decaying_residuals = [blended_residual * (RESIDUAL_DECAY_FACTOR ** i) for i in range(len(future_forecast_df))]
         else:
             # If there was no residual to apply, the adjusted value is the same as the raw value.
             log.info("No live residual to apply. Using raw model forecast.")
