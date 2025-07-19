@@ -288,7 +288,6 @@ body {
 
 #section-2-edu-info .edu-info-content,
 .pollutant-risks-widget-content,
-.predicted-risks-widget-content,
 .forecast-widget-content {
     flex-grow: 1;     
     overflow-y: auto; 
@@ -598,6 +597,9 @@ body {
     width: 100%;
     max-height: 340px; 
     overflow-y: auto;  
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .predicted-risk-day-card {
@@ -657,6 +659,16 @@ body {
     .main-content-grid { 
         grid-template-columns: 1fr; 
     }
+}
+
+/* --- Specific Rule for Section 6 Card Spacing --- */
+#section-6-weekly-risks .predicted-risks-widget-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex-grow: 1;     
+    overflow-y: auto; 
+    min-height: 0;
 }
 
 /* Footer */

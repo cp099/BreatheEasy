@@ -28,7 +28,6 @@ import traceback
 import numpy as np
 import math
 import dash_svg
-from datetime import timedelta
 
 # --- Setup Project Root Path ---
 # This ensures that the application can find the 'src' directory for imports,
@@ -43,14 +42,13 @@ if PROJECT_ROOT not in sys.path:
 # in a degraded state for development and layout purposes.
 try:
     from src.api_integration.weather_client import get_current_weather
-    from src.analysis.historical import get_city_aqi_trend_data
+    from src.analysis.historical import get_historical_data_for_city
     from src.health_rules.info import AQI_DEFINITION, AQI_SCALE
     from src.exceptions import APIError
     from src.api_integration.client import get_current_aqi_for_city
     from src.health_rules.info import get_aqi_info 
-    from src.modeling.predictor import generate_forecast, format_forecast_for_ui
     from src.api_integration.client import get_current_pollutant_risks_for_city
-    from src.modeling.predictor import get_calibrated_forecast_and_risks
+    from src.modeling.predictor import get_daily_summary_forecast
     from src.exceptions import APIError, ModelFileNotFoundError
 except ImportError as e:
     # This fallback is crucial for frontend development without a full backend setup.
@@ -66,9 +64,9 @@ except ImportError as e:
                 "feelslike_c": "N/A", "pressure_mb": "N/A", "uv_index": "N/A",
                 "error_message": "Backend weather client not loaded"} 
 
-    def get_city_aqi_trend_data(city_name):
-        print(f"Using DUMMY get_city_aqi_trend_data for {city_name}")
-        return pd.Series(dtype='float64', name="AQI") 
+    def get_historical_data_for_city(city_name):
+        print(f"Using DUMMY get_historical_data_for_city for {city_name}")
+        return pd.DataFrame() # Return an empty DataFrame 
     
     def get_current_aqi_for_city(city_name):
         print(f"Using DUMMY get_current_aqi_for_city for {city_name}")
@@ -86,17 +84,6 @@ except ImportError as e:
         if aqi_value <= 100: return {'level': 'Satisfactory', 'range': '51-100', 'color': '#D4E46A', 'implications': 'Minor breathing discomfort.'} 
         if aqi_value <= 200: return {'level': 'Moderate', 'range': '101-200', 'color': '#FDD74B', 'implications': 'Breathing discomfort.'} 
         return {'level': 'Poor', 'range': '201+', 'color': '#FFA500', 'implications': 'Significant breathing discomfort.'} 
-
-    def generate_forecast(target_city, days_ahead, apply_residual_correction):
-        print(f"Using DUMMY generate_forecast for {target_city}")
-        dates = pd.to_datetime([pd.Timestamp.now().date() + pd.Timedelta(days=i) for i in range(days_ahead)])
-        return pd.DataFrame({'ds': dates, 'yhat_adjusted': [50 + i*10 for i in range(days_ahead)]})
-
-    def format_forecast_for_ui(forecast_df):
-        print("Using DUMMY format_forecast_for_ui")
-        if forecast_df is None or forecast_df.empty: return []
-        return [{'date': row['ds'].strftime('%Y-%m-%d'), 'predicted_aqi': int(row['yhat_adjusted'])} 
-                for _, row in forecast_df.iterrows()]
     
     def get_current_pollutant_risks_for_city(city_name):
         print(f"Using DUMMY get_current_pollutant_risks_for_city for {city_name}")
@@ -159,7 +146,7 @@ else:
     print("Warning: .env file not found. API calls might fail or use defaults.")
 
 # List of cities for the main dropdown menu.
-HARDCODED_CITIES = ['Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Hyderabad']
+TARGET_CITIES = ['Bangalore', 'Chennai', 'Kolkata', 'Mumbai']
 
 # --- Initialize Dash App ---
 app = dash.Dash(__name__, assets_folder='assets')
@@ -180,8 +167,8 @@ app.layout = html.Div(className="app-shell", children=[
             html.Div(className="city-dropdown-container", children=[
                 dcc.Dropdown(
                     id='city-dropdown',
-                    options=[{'label': city, 'value': city} for city in HARDCODED_CITIES],
-                    value=HARDCODED_CITIES[0] if HARDCODED_CITIES else None,
+                    options=[{'label': city, 'value': city} for city in TARGET_CITIES],
+                    value=TARGET_CITIES[0],
                     placeholder="Select a city",
                     clearable=False,
                     className="city-dropdown"
@@ -195,17 +182,6 @@ app.layout = html.Div(className="app-shell", children=[
             # --- Row 1 ---
             html.Div(className="widget-card", id="section-1-hist-summary", children=[
                 html.H3("Historical Summary"),
-			 dcc.Dropdown(
-			         id='range-dropdown',
-			         options=[
-			             {'label': 'All', 'value': 'All'},
-			             {'label': 'Past 6 Months', 'value': 'Past 6 Months'},
-			             {'label': 'Past Month', 'value': 'Past Month'},
-			             {'label': 'Past Week', 'value': 'Past Week'},
-			         ],
-			         value='All',  # default value
-			         placeholder="Select Time Range"
-			     ),
                 dcc.Graph(
                     id='historical-aqi-trend-graph',
                     figure={},
@@ -338,87 +314,70 @@ def update_current_weather(selected_city):
         return get_default_weather_layout(city_name_text=selected_city, error_message="Error loading weather.")
 # Note: Further callback implementation details are kept as is, as per the rules.
 
-
-
 @app.callback(
     Output('historical-aqi-trend-graph', 'figure'),
-    Input('city-dropdown', 'value'), 
-    Input('range-dropdown', 'value')
+    [Input('city-dropdown', 'value')]
 )
-def update_historical_trend_graph(selected_city, selected_range):
-    """Fetches historical data and generates a time-series graph for the selected city."""
-
-    # inner helper function to create a placeholder graph on error or no data.
-    def create_placeholder_figure(message_text, height=300):
+def update_historical_trend_graph(selected_city):
+    """
+    Generates the historical AQI trend graph from the final daily feature dataset,
+    with robust data processing.
+    """
+    def create_placeholder_figure(message_text):
         fig = go.Figure()
-        fig.update_layout(annotations=[dict(text=message_text, showarrow=False, font=dict(size=14, color="#0A4D68"))],
-                          xaxis_visible=False, yaxis_visible=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=height)
+        fig.update_layout(
+            annotations=[dict(text=message_text, showarrow=False, font=dict(size=14, color="#0A4D68"))],
+            xaxis_visible=False, yaxis_visible=False,
+            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
+        )
         return fig
-    
-    if not selected_city: return create_placeholder_figure("Select a city to view historical AQI trend")
-    
+
+    if not selected_city:
+        return create_placeholder_figure("Select a city to view historical AQI trend.")
+
     try:
-        aqi_trend_series = get_city_aqi_trend_data(selected_city)
-        if aqi_trend_series is None or aqi_trend_series.empty:
-            return create_placeholder_figure(f"No historical data available for {selected_city}")
-    
-        df_trend = aqi_trend_series.reset_index()
-        if not ({'Date', 'AQI'}.issubset(df_trend.columns)):
-            if len(df_trend.columns) == 2: df_trend.columns = ['Date', 'AQI']
-            else: raise ValueError(f"DataFrame columns {df_trend.columns.tolist()} not as expected ('Date', 'AQI').")
-    
+        # Step 1: Get the data using our new function
+        df_city_raw = get_historical_data_for_city(selected_city)
+        if df_city_raw.empty:
+            return create_placeholder_figure(f"No historical data available for {selected_city}.")
+
+        # Step 2: Resample the data to daily, similar to the new logic
+        # We use .mean() for a more representative daily value than .max()
+        daily_aqi_series = df_city_raw['AQI'].resample('D').mean().dropna()
+
+        # --- Step 3: Apply the ROBUST processing from your OLD working code ---
+        df_trend = daily_aqi_series.reset_index()
+        df_trend.columns = ['Date', 'AQI'] # Explicitly name the columns
+
+        # Ensure data types are correct
         df_trend['Date'] = pd.to_datetime(df_trend['Date'], errors='coerce')
         df_trend['AQI'] = pd.to_numeric(df_trend['AQI'], errors='coerce')
-        if np.isinf(df_trend['AQI']).any(): df_trend.replace([np.inf, -np.inf], np.nan, inplace=True)
         df_trend.dropna(subset=['Date', 'AQI'], inplace=True)
-        df_trend = df_trend.sort_values(by='Date').reset_index(drop=True)
-    
+        
         if df_trend.empty:
-            return create_placeholder_figure(f"No valid data after cleaning for {selected_city}")
-    
-        # filter based on selected_range
-        latest_date = df_trend['Date'].max()
-    
-        if selected_range == 'Past Week':
-            cutoff_date = latest_date - timedelta(weeks=1)
-            df_trend = df_trend[df_trend['Date'] >= cutoff_date]
-        elif selected_range == 'Past Month':
-            cutoff_date = latest_date - timedelta(days=30)
-            df_trend = df_trend[df_trend['Date'] >= cutoff_date]
-        elif selected_range == 'Past 6 Months':
-            cutoff_date = latest_date - timedelta(days=182)  # roughly 6 months
-            df_trend = df_trend[df_trend['Date'] >= cutoff_date]
-        # else: show all (the default)
-    
-        if df_trend.empty:
-            return create_placeholder_figure(f"No data available for {selected_city} in selected range")
-    
-        actual_aqi_min, actual_aqi_max = df_trend['AQI'].min(), df_trend['AQI'].max()
-        x_values_for_plot, y_values_for_plot = df_trend['Date'].tolist(), df_trend['AQI'].tolist()
-    
-        fig = go.Figure(data=[go.Scatter(x=x_values_for_plot, y=y_values_for_plot, mode='lines', name='AQI Trend', line_shape='linear')])
-    
-        yaxis_buffer = 0.1 * (actual_aqi_max - actual_aqi_min) if (actual_aqi_max - actual_aqi_min) > 0 else 10
-        yaxis_min_range, yaxis_max_range = max(0, actual_aqi_min - yaxis_buffer), actual_aqi_max + yaxis_buffer
-    
-        graph_title = f"AQI Trend for {selected_city} ({selected_range})"
-    
-        fig.update_layout(title_text=graph_title, title_x=0.5, title_font_size=14,
-                          height=380,
-                          xaxis_title="Date", yaxis_title="AQI Value", yaxis_range=[yaxis_min_range, yaxis_max_range],
-                          margin=dict(l=50, r=20, t=40, b=40),
-                          plot_bgcolor='rgba(255,255,255,0.8)', paper_bgcolor='rgba(0,0,0,0)', font_color="#0A4D68")
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue', tickfont_size=10)
-        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightSteelBlue', tickfont_size=10)
-        fig.update_traces(line=dict(color='#007bff', width=1.5),
-                          hovertemplate="<b>Date</b>: %{x|%Y-%m-%d}<br><b>AQI</b>: %{y:.0f}<extra></extra>")
-    
+            return create_placeholder_figure(f"No valid data to plot for {selected_city}.")
+
+        # Convert to lists for Plotly - this is the safest way
+        x_values_for_plot = df_trend['Date'].tolist()
+        y_values_for_plot = df_trend['AQI'].tolist()
+        
+        fig = go.Figure(data=[
+            go.Scatter(x=x_values_for_plot, y=y_values_for_plot, mode='lines', name='Daily Mean AQI')
+        ])
+        
+        fig.update_layout(
+            title_text=f"Historical Daily Mean AQI for {selected_city}", title_x=0.5,
+            xaxis_title="Date", yaxis_title="AQI Value",
+            margin=dict(l=50, r=20, t=40, b=40),
+            plot_bgcolor='rgba(255,255,255,0.8)', paper_bgcolor='rgba(0,0,0,0)',
+            font_color="#0A4D68"
+        )
         return fig
+        
     except Exception as e:
-        print(f"ERROR IN HISTORICAL TREND CALLBACK for {selected_city}:")
+        print(f"ERROR IN HISTORICAL TREND CALLBACK for {selected_city}: {e}")
         traceback.print_exc()
-        return create_placeholder_figure(f"Error displaying trend for {selected_city}", height=380)
-# Note: Further callback implementation details are kept as is.
+        return create_placeholder_figure(f"Error displaying trend for {selected_city}.")
 
 # --- SVG Gauge Helper Function ---
 def describe_arc(x, y, radius, start_angle_deg, end_angle_deg):
@@ -541,58 +500,49 @@ def update_all_forecast_widgets(selected_city):
         return placeholder, placeholder
 
     try:
-        days_to_forecast = 3
-        # Call our new backend function that does all the work and returns two values.
-        weekly_risks_list, forecast_df = get_calibrated_forecast_and_risks(selected_city, days_ahead=days_to_forecast)
+        # Our new function returns one list that can be used for both sections.
+        risks_and_forecast_list = get_daily_summary_forecast(selected_city, days_ahead=3)
 
-        # --- Part 1: Build the content for Section 4 (AQI Forecast) ---
-        section_4_content = []
-        if forecast_df is not None and not forecast_df.empty:
-            # Use the existing helper to format the raw DataFrame.
-            list_of_daily_forecasts = format_forecast_for_ui(forecast_df)
-            forecast_cards_sec4 = []
-            for day_forecast in list_of_daily_forecasts:
-                aqi_val = day_forecast.get('predicted_aqi')
-                cat_info = get_aqi_info(aqi_val)
-                level = cat_info.get('level', 'N/A')
-                color = cat_info.get('color', '#DDDDDD')
-                card_style = {'borderLeft': f"7px solid {color}", 'padding': '12px 15px', 'borderRadius': '6px', 'backgroundColor': f"{color}1A"}
-                
-                forecast_cards_sec4.append(
-                    html.Div(style=card_style, className="forecast-day-card", children=[
-                        html.Div(className="forecast-card-header", children=[
-                            html.Strong(day_forecast.get('date'), className="forecast-date"),
-                            html.Span(children=["AQI: ", html.Span(f"{aqi_val}", style={'fontWeight': 'bold'}), f" ({level})"], className="forecast-aqi-level", style={'color': color})
-                        ])
+        if not risks_and_forecast_list:
+            # If the list is empty, it means the forecast failed.
+            error_message = html.P(f"Forecast data is currently unavailable for {selected_city}.", className="forecast-error-message")
+            return error_message, error_message
+
+        # --- Build Content for Both Sections from the same list ---
+        forecast_cards_sec4 = []
+        risk_cards_sec6 = []
+        
+        for day_data in risks_and_forecast_list:
+            aqi_val = day_data.get('predicted_aqi')
+            level = day_data.get('level', 'N/A')
+            color = day_data.get('color', '#DDDDDD')
+            date_str = day_data.get('date', 'N/A')
+            implications = day_data.get('implications', 'No specific implications provided.')
+            
+            # Create Card for Section 4 (Simple Forecast)
+            card_style_sec4 = {'borderLeft': f"7px solid {color}", 'padding': '12px 15px', 'borderRadius': '6px', 'backgroundColor': f"{color}1A"}
+            forecast_cards_sec4.append(
+                html.Div(style=card_style_sec4, className="forecast-day-card", children=[
+                    html.Div(className="forecast-card-header", children=[
+                        html.Strong(date_str, className="forecast-date"),
+                        html.Span(children=["AQI: ", html.Span(f"{aqi_val}", style={'fontWeight': 'bold'}), f" ({level})"], className="forecast-aqi-level", style={'color': color})
                     ])
-                )
-            section_4_content = forecast_cards_sec4
-        else:
-            # If the forecast fails, display an error message in Section 4.
-            section_4_content = html.P(f"AQI forecast data is currently unavailable for {selected_city}.", className="forecast-error-message")
+                ])
+            )
+            
+            # Create Card for Section 6 (Detailed Risks)
+            card_style_sec6 = {'borderLeft': f"7px solid {color}", 'padding': '10px 15px', 'borderRadius': '6px', 'backgroundColor': f"{color}1A"}
+            risk_cards_sec6.append(
+                html.Div(style=card_style_sec6, className="predicted-risk-day-card", children=[
+                    html.Div(className="predicted-risk-header", children=[
+                        html.Strong(date_str, className="predicted-risk-date"),
+                        html.Span(f"AQI: {aqi_val} ({level})", className="predicted-risk-aqi-level", style={'color': color})
+                    ]),
+                    html.P(implications, className="predicted-risk-implications")
+                ])
+            )
 
-        # --- Part 2: Build the content for Section 6 (Predicted Risks) ---
-        section_6_content = []
-        if weekly_risks_list:
-            risk_cards_sec6 = []
-            for day_risk in weekly_risks_list:
-                card_style = {'borderLeft': f"7px solid {day_risk.get('color', '#DDDDDD')}", 'padding': '10px 15px', 'borderRadius': '6px', 'backgroundColor': f"{day_risk.get('color', '#DDDDDD')}1A"}
-                risk_cards_sec6.append(
-                    html.Div(style=card_style, className="predicted-risk-day-card", children=[
-                        html.Div(className="predicted-risk-header", children=[
-                            html.Strong(day_risk.get('date', 'N/A'), className="predicted-risk-date"),
-                            html.Span(f"AQI: {day_risk.get('predicted_aqi', 'N/A')} ({day_risk.get('level', 'N/A')})", className="predicted-risk-aqi-level", style={'color': day_risk.get('color', '#333333')})
-                        ]),
-                        html.P(day_risk.get('implications', 'No specific implications provided.'), className="predicted-risk-implications")
-                    ])
-                )
-            section_6_content = html.Div(risk_cards_sec6)
-        else:
-            # If the forecast fails, display an error message in Section 6.
-            section_6_content = html.P(f"Predicted weekly risk data is currently unavailable for {selected_city}.", className="predicted-risk-error")
-
-        # Return the content for both sections at the same time.
-        return section_4_content, section_6_content
+        return forecast_cards_sec4, html.Div(risk_cards_sec6)
 
     except Exception as e:
         # If any unexpected error happens, show an error in both widgets.

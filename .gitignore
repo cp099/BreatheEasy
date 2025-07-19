@@ -147,7 +147,6 @@ Thumbs.db
 # --- Generated Models ---
 # Ignore large model files. The training script can regenerate them.
 models/*.json
-models/*.pkl
 models/*.h5
 models/*.joblib
 models/*.onnx
