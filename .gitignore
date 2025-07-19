@@ -161,6 +161,12 @@ data/Post-Processing/CSV_Files/Delhi_AQI_Dataset.csv
 data/Post-Processing/CSV_Files/Hyderabad_AQI_Dataset.csv
 data/Post-Processing/CSV_Files/Mumbai_AQI_Dataset.csv
 data/Post-Processing/CSV_Files/Encoded_AQI_Dataset.csv
+data/Post-Processing/CSV_Files/Bangalore_Weather_Dataset.csv
+data/Post-Processing/CSV_Files/Chennai_Weather_Dataset.csv
+data/Post-Processing/CSV_Files/New_Delhi_Weather_Dataset.csv
+data/Post-Processing/CSV_Files/Kolkata_Weather_Dataset.csv
+data/Post-Processing/CSV_Files/Mumbai_Weather_Dataset.csv
+
 
 # Ignore generated Excel files if any are created.
 *.xlsx
