@@ -21,6 +21,8 @@ numpy
 prophet
 # Holidays is a dependency of Prophet. Pinned to <1.0 to avoid breaking changes.
 holidays<1.0
+# LightGBM for high-performance gradient boosting.
+lightgbm
 
 # --- API & Web Requests ---
 # Used for making HTTP requests to external APIs (WeatherAPI, AQICN).

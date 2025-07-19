@@ -39,23 +39,21 @@ AQI_SCALE = [
 def get_aqi_info(aqi_value):
     """
     Finds the CPCB AQI category details for a given numerical AQI value.
-
-    Args:
-        aqi_value (int | float | None): The numerical AQI value to classify.
-
-    Returns:
-        dict | None: A dictionary containing the category details ('range',
-                     'level', 'color', 'implications') if a match is found.
-                     Returns the 'Severe' category for any value above the
-                     highest defined range. Returns None for invalid inputs
-                     (e.g., negative, non-numeric, or None).
+    (This is a revised, more robust version).
     """
-    # Validate input: return None for None, non-numeric, or negative values.
-    if pd.isna(aqi_value) or not isinstance(aqi_value, (int, float)) or aqi_value < 0:
-        log.warning(f"Invalid AQI value received: {aqi_value}. Returning None.")
+    # 1. Validate input: handle None, non-numeric, and negative values.
+    if pd.isna(aqi_value) or not isinstance(aqi_value, (int, float)):
+        log.warning(f"Invalid AQI value type received: {type(aqi_value)}. Returning None.")
+        return None
+    if aqi_value < 0:
+        log.warning(f"Negative AQI value received: {aqi_value}. Returning None.")
         return None
 
-    # Find the matching category in the defined scale.
+    # --- THIS IS THE CRITICAL FIX ---
+    # Round the value to the nearest integer to match the scale's boundaries.
+    aqi_value = int(round(aqi_value))
+    
+    # 2. Find the matching category in the defined scale.
     for category in AQI_SCALE:
         try:
             if '-' in category['range']:
@@ -66,21 +64,16 @@ def get_aqi_info(aqi_value):
             log.error(f"Could not parse AQI range string: {category['range']}")
             continue
 
-    # Handle cases where the AQI value is above the highest defined range.
-    try:
-         if AQI_SCALE and '-' in AQI_SCALE[-1]['range']:
-             last_high = int(AQI_SCALE[-1]['range'].split('-')[1])
-             if aqi_value > last_high:
-                  log.info(f"AQI value {aqi_value} > {last_high}, classifying as '{AQI_SCALE[-1]['level']}'.")
-                  return AQI_SCALE[-1]
-         else:
-              log.warning("Cannot determine upper bound from AQI_SCALE configuration.")
-    except (ValueError, IndexError) as e:
-         log.error(f"Error processing upper bound of AQI_SCALE: {e}")
+    # 3. Handle cases where the AQI value is above the highest defined range.
+    # If the loop completes without finding a match, it means the value is
+    # greater than the highest range, so we return the last category.
+    if AQI_SCALE:
+        return AQI_SCALE[-1]
 
-    # This line should ideally not be reached with valid non-negative numbers.
-    log.warning(f"Could not find matching AQI category for value: {aqi_value}")
+    # This fallback should only be reached if AQI_SCALE is empty for some reason.
+    log.error("AQI_SCALE constant is empty. Cannot classify value.")
     return None
+
 
 # --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
