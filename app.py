@@ -18,7 +18,7 @@ The application is structured as follows:
 # --- Core Libraries ---
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output 
+from dash.dependencies import Input, Output, State
 import os
 from dotenv import load_dotenv
 import sys
@@ -150,16 +150,20 @@ TARGET_CITIES = ['Bangalore', 'Chennai', 'Kolkata', 'Mumbai']
 
 # --- Initialize Dash App ---
 app = dash.Dash(__name__, assets_folder='assets')
+server = app.server
 app.title = "BreatheEasy"
 
 # --- App Layout Definition ---
-app.layout = html.Div(className="app-shell", children=[
+app.layout = html.Div(id='app-container', className="app-shell", children=[
+    dcc.Store(id='theme-store', storage_type='local', data='light'),
+    html.Button("🌙", id='theme-toggle-button', className='theme-toggle'),
     html.Div(className="content-above-footer", children=[
         # 1. Page Header with Logo
         html.Div(className="page-header", children=[
-            html.Img(src=app.get_asset_url('breatheeasy_logo.png'), 
-             className="logo-image", 
-             alt="BreatheEasy Project Logo") 
+            html.Img(id='logo-image', # ADD THIS ID
+                src=app.get_asset_url('logo_light.png'), # Set the light logo as the default
+                className="logo-image", 
+                alt="BreatheEasy Project Logo")
         ]),
 
         # 2. Main Control Bar with Dropdown and Weather
@@ -316,9 +320,10 @@ def update_current_weather(selected_city):
 
 @app.callback(
     Output('historical-aqi-trend-graph', 'figure'),
-    [Input('city-dropdown', 'value')]
+    Input('city-dropdown', 'value'),
+    Input('theme-store', 'data') # ADD THIS NEW INPUT
 )
-def update_historical_trend_graph(selected_city):
+def update_historical_trend_graph(selected_city, current_theme):
     """
     Generates the historical AQI trend graph from the final daily feature dataset,
     with robust data processing.
@@ -362,15 +367,21 @@ def update_historical_trend_graph(selected_city):
         y_values_for_plot = df_trend['AQI'].tolist()
         
         fig = go.Figure(data=[
-            go.Scatter(x=x_values_for_plot, y=y_values_for_plot, mode='lines', name='Daily Mean AQI')
+            go.Scatter(
+                x=x_values_for_plot, y=y_values_for_plot, mode='lines', name='Daily Mean AQI',
+                line=dict(color='var(--accent-primary)') # Use our bright accent color
+            )
         ])
+
+        graph_template = 'plotly_dark' if current_theme == 'dark' else 'plotly_white'
         
         fig.update_layout(
             title_text=f"Historical Daily Mean AQI for {selected_city}", title_x=0.5,
             xaxis_title="Date", yaxis_title="AQI Value",
             margin=dict(l=50, r=20, t=40, b=40),
-            plot_bgcolor='rgba(255,255,255,0.8)', paper_bgcolor='rgba(0,0,0,0)',
-            font_color="#0A4D68"
+            plot_bgcolor='rgba(0,0,0,0)',     # Ensure transparent background
+            paper_bgcolor='rgba(0,0,0,0)',    # Ensure transparent paper
+            template=graph_template          # Apply the chosen theme template
         )
         return fig
         
@@ -636,7 +647,41 @@ def update_pollutant_risks_display(selected_city):
         return html.P(f"Error loading pollutant risk data for {selected_city}.", className="pollutant-risk-error")
 # Note: Further callback implementation details are kept as is.
 
+# --- THEME TOGGLE CALLBACKS ---
 
+@app.callback(
+    Output('theme-store', 'data'),
+    Input('theme-toggle-button', 'n_clicks'),
+    State('theme-store', 'data'),
+    prevent_initial_call=True
+)
+def toggle_theme_store(n_clicks, current_theme):
+    """Toggles the theme between light and dark and saves it in the store."""
+    if current_theme == 'light':
+        return 'dark'
+    else:
+        return 'light'
+
+@app.callback(
+    Output('app-container', 'className'),
+    Input('theme-store', 'data')
+)
+def update_app_theme_class(theme):
+    """Applies the .dark-theme class to the main app container."""
+    if theme == 'dark':
+        return "app-shell dark-theme"
+    return "app-shell"
+
+@app.callback(
+    Output('logo-image', 'src'),
+    Input('theme-store', 'data')
+)
+def update_logo_src(theme):
+    """Switches the logo image file based on the current theme."""
+    if theme == 'dark':
+        return app.get_asset_url('logo_dark.png')
+    else:
+        return app.get_asset_url('logo_light.png')
 
 # --- Run the Application ---
 if __name__ == '__main__':
