@@ -162,7 +162,7 @@ def get_daily_summary_forecast(city_name: str, days_ahead: int = 3):
                 "implications": aqi_info.get("implications", "N/A")
             })
         return ui_list
-
+    
     except Exception as e:
         log.error(f"An unexpected error in get_daily_summary_forecast for {city_name}: {e}", exc_info=True)
         return []
