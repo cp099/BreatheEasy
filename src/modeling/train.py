@@ -54,15 +54,19 @@ def train_and_save_models(data_path: str, models_dir: str):
         
         print(f"Training with {len(X)} samples and {len(features)} features.")
         
-        # Define the LightGBM model with good starting parameters
+        # Define the LightGBM model with final, robust Hyperparameter tuning
         lgbm = lgb.LGBMRegressor(
             objective='regression_l1',
-            n_estimators=500,         # Reduced from 1000
-            learning_rate=0.02,       # Lower learning rate requires more trees but is more robust
-            num_leaves=20,            # Reduced from 31 to make the model simpler
-            max_depth=10,             # Prevents trees from getting too complex
-            subsample=0.8,
-            colsample_bytree=0.8,
+            n_estimators=300,         # A moderate number of trees
+            learning_rate=0.05,       # A standard learning rate
+            num_leaves=20,            # Simple trees
+            max_depth=7,              # Even shallower trees to force generalization
+            
+            # --- These are the key new parameters for stability ---
+            subsample=0.7,            # Use only 70% of data for each tree
+            subsample_freq=1,         # Perform bagging at every iteration
+            colsample_bytree=0.7,     # Use only 70% of features for each tree
+            
             reg_alpha=0.1,            # L1 regularization
             reg_lambda=0.1,           # L2 regularization
             random_state=42,
