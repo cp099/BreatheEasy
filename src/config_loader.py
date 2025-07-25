@@ -192,6 +192,26 @@ def get_config():
     """
     return CONFIG
 
+def read_last_n_log_lines(n=10):
+    """
+    Safely reads the last N lines from the application log file.
+    """
+    try:
+        log_cfg = CONFIG.get('logging', {})
+        log_filename = log_cfg.get('log_filename', 'app.log')
+        log_file_path = os.path.join(PROJECT_ROOT, log_filename)
+        
+        if not os.path.exists(log_file_path):
+            return ["Log file not found."]
+        
+        with open(log_file_path, 'r', encoding='utf-8') as f:
+            # Read all lines and return the last N
+            lines = f.readlines()
+            return lines[-n:]
+    except Exception as e:
+        # We must never let a logging utility crash the app
+        return [f"Error reading log file: {e}"]
+
 # --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
     # This block demonstrates the module's behavior when run directly.

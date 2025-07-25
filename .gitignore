@@ -175,6 +175,7 @@ data/Post-Processing/CSV_Files/Mumbai_Weather_Dataset.csv
 # Ignore all log files, including rotated ones (e.g., app.log.1).
 *.log
 *.log.*
+predictions_log.csv
 
 # --- Output ---
 # Ignore any directories used for generated output, like plots.

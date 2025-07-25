@@ -17,12 +17,10 @@ dash-svg
 # Pandas and NumPy for data manipulation and numerical operations.
 pandas
 numpy
-# Prophet for time-series forecasting.
-prophet
-# Holidays is a dependency of Prophet. Pinned to <1.0 to avoid breaking changes.
-holidays<1.0
+scikit-learn
 # LightGBM for high-performance gradient boosting.
 lightgbm
+
 
 # --- API & Web Requests ---
 # Used for making HTTP requests to external APIs (WeatherAPI, AQICN).
@@ -46,6 +44,6 @@ pytest-mock
 # Matplotlib and Seaborn for plotting and data visualization.
 matplotlib
 seaborn
-# Jupyter for interactive notebook-based development.
 notebook
 jupyterlab
+psutil
