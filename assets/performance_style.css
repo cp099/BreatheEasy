@@ -1,0 +1,152 @@
+/* File: assets/performance_style.css (CORRECTED) */
+
+.performance-hub-shell {
+    background-color: #0D1117;
+    color: #E6EDF3;
+    padding: 25px;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.performance-header {
+    text-align: center;
+    margin-bottom: 30px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 20px;
+}
+.performance-header h1 { color: #58A6FF; font-size: 2.2rem; }
+.performance-header p { color: #8B949E; font-size: 1.1rem; }
+.nav-link { color: #58A6FF; text-decoration: none; font-weight: 500; }
+.nav-link:hover { text-decoration: underline; }
+
+.performance-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; }
+@media (max-width: 1200px) { .performance-grid { grid-template-columns: 1fr; } }
+
+.performance-column { display: flex; flex-direction: column; gap: 25px; min-width: 0; }
+.performance-column > h3 {
+    color: #C9D1D9;
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin: 0 0 5px 5px;
+    border-left: 3px solid #58A6FF;
+    padding-left: 10px;
+}
+
+.widget-card-perf {
+    background-color: #161B22;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+.widget-card-perf h4 { color: #E6EDF3; margin-top: 0; margin-bottom: 20px; font-size: 1rem; font-weight: 500; }
+
+/* --- FIX: Scorecard Layout now uses Flexbox for proper alignment --- */
+.scorecard-grid {
+    display: flex;
+    flex-wrap: wrap;       /* Allows items to wrap to the next line */
+    justify-content: center; /* Centers the items (will center the bottom row) */
+    gap: 15px;
+}
+.scorecard {
+    flex: 1 1 30%; /* grow | shrink | basis. This creates the 3-column feel */
+    min-width: 140px; /* Prevents cards from getting too small */
+    padding: 15px;
+    text-align: center;
+    background-color: #0D1117;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.scorecard h5 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    color: #8B949E;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+.scorecard p { margin: 0; font-family: "SF Mono", "Consolas", "Roboto Mono", monospace; font-weight: 500; color: #E6EDF3; }
+.scorecard-value { font-size: 2.2rem; }
+.scorecard-unit { font-size: 1.2rem; color: #8B949E; margin-left: 4px; }
+#uptime-text-perf { font-size: 1.5rem; padding-top: 8px; }
+
+/* --- Collapsible Log Viewer Styles (No changes needed) --- */
+.log-details-container summary { cursor: pointer; color: #58A6FF; font-weight: 500; margin-bottom: 10px; }
+.log-details-container summary:hover { text-decoration: underline; }
+.log-box {
+    background-color: #010409;
+    color: #8B949E;
+    padding: 15px;
+    border-radius: 6px;
+    height: 250px;
+    overflow-y: scroll;
+    overflow-x: auto;
+    font-family: "SF Mono", "Consolas", "Roboto Mono", monospace;
+    font-size: 0.75rem;
+    white-space: pre;
+}
+
+/* --- Styles for the new Graph Tabs --- */
+.performance-tabs {
+    background-color: #0D1117; /* Darkest background */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0 5px;
+}
+
+.performance-tab {
+    background-color: transparent !important;
+    border: none !important;
+    color: #8B949E !important; /* Dim color for inactive tabs */
+    padding: 12px 18px !important;
+}
+
+.performance-tab--selected {
+    background-color: transparent !important;
+    border: none !important;
+    border-bottom: 3px solid #58A6FF !important; /* Blue accent for active tab */
+    color: #E6EDF3 !important; /* Bright color for active tab */
+}
+
+.graph-container-perf {
+    padding-top: 15px;
+    min-height: 250px; /* Ensures the card doesn't collapse */
+}
+
+/* --- Styles for the new Graph Live Readouts --- */
+.graph-readout-container {
+    display: flex;
+    justify-content: flex-start;
+    gap: 25px;
+    padding: 10px 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.readout-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "SF Mono", "Consolas", "Roboto Mono", monospace;
+}
+
+.readout-label {
+    color: #8B949E; /* Dim grey for the label */
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+}
+
+.readout-value {
+    color: #E6EDF3; /* Bright white for the value */
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.readout-color-box {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 8px;
+}
