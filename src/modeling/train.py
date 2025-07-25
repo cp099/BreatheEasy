@@ -9,6 +9,7 @@ import lightgbm as lgb
 import os
 import sys
 import joblib
+from sklearn.metrics import mean_absolute_error
 
 # --- Setup Project Root Path ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -30,6 +31,7 @@ def train_and_save_models(data_path: str, models_dir: str):
     try:
         print(f"Loading data from: {data_path}")
         df = pd.read_csv(data_path, parse_dates=['Date'])
+        df.set_index('Date', inplace=True)
         print(f"Successfully loaded data. Shape: {df.shape}")
     except FileNotFoundError:
         print(f"ERROR: Daily feature data file not found at '{data_path}'.")
@@ -51,8 +53,16 @@ def train_and_save_models(data_path: str, models_dir: str):
         features = [col for col in city_df.columns if col not in ['Date', 'City', TARGET_VARIABLE]]
         X = city_df[features]
         y = city_df[TARGET_VARIABLE]
-        
-        print(f"Training with {len(X)} samples and {len(features)} features.")
+
+        validation_cutoff_date = city_df.index.max() - pd.DateOffset(months=6)
+
+        train_df = city_df[city_df.index <= validation_cutoff_date]
+        val_df = city_df[city_df.index > validation_cutoff_date]
+
+        X_train, y_train = train_df[features], train_df[TARGET_VARIABLE]
+        X_val, y_val = val_df[features], val_df[TARGET_VARIABLE]
+
+        print(f"Training with {len(X_train)} samples, validating with {len(X_val)} samples.")
         
         # Define the LightGBM model with final, robust Hyperparameter tuning
         lgbm = lgb.LGBMRegressor(
@@ -74,8 +84,13 @@ def train_and_save_models(data_path: str, models_dir: str):
         )
         
         print("Starting training...")
-        lgbm.fit(X, y)
+        lgbm.fit(X_train, y_train)
+        print("Evaluating model performance on validation data...")
+        predictions = lgbm.predict(X_val)
+        mae = mean_absolute_error(y_val, predictions)
+        print(f"  -> Validation MAE for {city}: {mae:.2f}")
         print("Training complete.")
+        
         
         model_filename = f"{city}_lgbm_daily_model.pkl"
         model_path = os.path.join(models_dir, model_filename)
@@ -83,6 +98,26 @@ def train_and_save_models(data_path: str, models_dir: str):
         try:
             joblib.dump(lgbm, model_path)
             print(f"Successfully saved model for {city} to: {model_path}")
+            
+            # --- NEW: Save feature importances and validation score ---
+            # 1. Save Feature Importances
+            importances_df = pd.DataFrame({
+                'feature': lgbm.booster_.feature_name(),
+                'importance': lgbm.booster_.feature_importance(importance_type='gain'),
+            }).sort_values('importance', ascending=False)
+            
+            importance_filename = f"{city}_feature_importance.json"
+            importance_path = os.path.join(models_dir, importance_filename)
+            importances_df.to_json(importance_path, orient='records')
+            print(f"  -> Saved feature importances to: {importance_path}")
+
+            # 2. Save Validation Score
+            score_filename = f"{city}_validation_score.json"
+            score_path = os.path.join(models_dir, score_filename)
+            with open(score_path, 'w') as f:
+                import json
+                json.dump({'mae': mae}, f)
+            print(f"  -> Saved validation score to: {score_path}")
         except Exception as e:
             print(f"ERROR: Could not save model for {city}. Reason: {e}")
 

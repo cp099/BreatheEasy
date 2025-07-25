@@ -87,7 +87,7 @@ def get_daily_summary_forecast(city_name: str, days_ahead: int = 3):
         params = {
             "latitude": last_known_row['latitude'], "longitude": last_known_row['longitude'],
             "daily": "temperature_2m_max,temperature_2m_min,temperature_2m_mean,relative_humidity_2m_mean,precipitation_sum,wind_speed_10m_mean",
-            "forecast_days": days_ahead + 1
+            "forecast_days": 7 
         }
         response = requests.get(WEATHER_FORECAST_API_URL, params=params)
         response.raise_for_status()
@@ -161,6 +161,25 @@ def get_daily_summary_forecast(city_name: str, days_ahead: int = 3):
                 "color": aqi_info.get("color", "#FFFFFF"),
                 "implications": aqi_info.get("implications", "N/A")
             })
+        # 6. Log the predictions for performance tracking
+        try:
+            log_file_path = os.path.join(PROJECT_ROOT, "predictions_log.csv")
+            log_df = pd.DataFrame(ui_list)
+            log_df['city'] = city_name # Add the city name for grouping
+
+            if not os.path.exists(log_file_path):
+                # If the log file doesn't exist, create it with a header.
+                log_df.to_csv(log_file_path, index=False, header=True)
+                log.info(f"Created new prediction log at: {log_file_path}")
+            else:
+                # If it exists, append the new predictions without the header.
+                log_df.to_csv(log_file_path, mode='a', index=False, header=False)
+                log.info(f"Appended {len(log_df)} predictions to log for {city_name}.")
+                
+        except Exception as log_e:
+            # A logging failure should not crash the main forecast.
+            log.error(f"Failed to write predictions to log file: {log_e}", exc_info=True)
+
         return ui_list
     
     except Exception as e:
