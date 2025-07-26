@@ -10,6 +10,7 @@ import os
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 from shared_data import cpu_data, ram_data, net_data
+import dash_bootstrap_components as dbc
 
 # --- Imports and setup (No changes needed here) ---
 try:
@@ -20,16 +21,30 @@ except ImportError:
     def read_last_n_log_lines(n=15): return ["Log reader not available."]
     PREDICTIONS_LOG_PATH = ""
 
-dash.register_page(__name__, path='/performance', name="Performance Hub")
+dash.register_page(__name__, path='/performance', name="BreatheEasy Live Performance Hub")
 
 APP_PROCESS = psutil.Process(os.getpid())
 
 # --- Page Layout (Corrected) ---
 layout = html.Div(className="performance-hub-shell", children=[
     html.Div(className="performance-header", children=[
-        html.H1("BreatheEasy Live Performance Hub"),
+        html.Img(
+            id='hub-header-image',
+            src=dash.get_asset_url('hub_header_dark.png'),
+            className='hub-header-image',
+            alt='BreatheEasy Live Performance Hub Logo'
+        ),
         html.P("Real-time system metrics and application status dashboard."),
-        dcc.Link("Go back to main dashboard", href="/", className="nav-link")
+        dbc.Button(
+            "Go back to main dashboard",
+            href="/",
+            className="mt-3",
+            style={
+                'backgroundColor': '#3374b1',
+                'borderColor': '#3374b1',
+                'color': '#F0F6FC'
+            }
+        )
     ]),
     html.Div(className="performance-grid", children=[
         # Left & Right columns...

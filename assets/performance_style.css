@@ -15,10 +15,13 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 20px;
 }
-.performance-header h1 { color: #58A6FF; font-size: 2.2rem; }
+.hub-header-image {
+    max-width: 550px; /* Matches the design spec width */
+    width: 90%;       /* Ensures it scales down nicely on smaller screens */
+    height: auto;     /* Maintains the correct aspect ratio */
+    margin-bottom: 15px; /* Adds space between the logo and the link below it */
+}
 .performance-header p { color: #8B949E; font-size: 1.1rem; }
-.nav-link { color: #58A6FF; text-decoration: none; font-weight: 500; }
-.nav-link:hover { text-decoration: underline; }
 
 .performance-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; }
 @media (max-width: 1200px) { .performance-grid { grid-template-columns: 1fr; } }
