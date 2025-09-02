@@ -150,7 +150,13 @@ else:
 TARGET_CITIES = ['Bangalore', 'Chennai', 'Kolkata', 'Mumbai']
 
 # --- Initialize the Dash App ---
-dash.register_page(__name__, path='/')
+dash.register_page(
+    __name__,
+    path='/',
+    name='BreatheEasy Dashboard',
+    title='BreatheEasy | Dashboard',
+    image='icon_dashboard.png'
+)
 
 # --- App Layout Definition ---
 layout = html.Div(id='app-container', className="app-shell", children=[

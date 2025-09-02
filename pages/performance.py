@@ -21,7 +21,13 @@ except ImportError:
     def read_last_n_log_lines(n=15): return ["Log reader not available."]
     PREDICTIONS_LOG_PATH = ""
 
-dash.register_page(__name__, path='/performance', name="BreatheEasy Live Performance Hub")
+dash.register_page(
+    __name__,
+    path='/performance',
+    name='BreatheEasy Performance Hub',
+    title='BreatheEasy | Performance',
+    image='icon_performance.png'
+)
 
 APP_PROCESS = psutil.Process(os.getpid())
 
