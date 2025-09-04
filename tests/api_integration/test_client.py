@@ -36,6 +36,7 @@ if PROJECT_ROOT not in sys.path:
 from src.api_integration.client import (
     get_city_aqi_data, 
     get_current_aqi_for_city,
+    get_current_pollutant_risks_for_city
 )
 from src.exceptions import APIError, APINotFoundError, APIKeyError, APITimeoutError, ConfigError
 
@@ -227,3 +228,56 @@ def test_get_current_aqi_aqi_is_none_or_dash_wrapper(mock_get_city_aqi_data):
     assert 'error' in result
     assert result['error'] == "AQI value not reported by station."
     mock_get_city_aqi_data.assert_called_once_with("DashAQICity")
+
+# --- Tests for get_current_pollutant_risks_for_city (High-Level Wrapper) ---
+
+@patch('src.api_integration.client.get_city_aqi_data')
+def test_get_pollutant_risks_success_wrapper(mock_get_city_aqi_data, mocker):
+    """
+    Tests that the pollutant risks wrapper correctly parses a successful response
+    and calls the interpreter function.
+    """
+    # We also need to mock the interpreter function to isolate this test.
+    mocker.patch(
+        'src.api_integration.client.interpret_pollutant_risks', 
+        return_value=["Mocked PM2.5 Risk"]
+    )
+    mock_get_city_aqi_data.return_value = MOCK_SUCCESS_RESPONSE_DELHI
+    
+    result = get_current_pollutant_risks_for_city("Delhi, India")
+    
+    assert isinstance(result, dict)
+    assert 'error' not in result
+    assert result['city'] == 'Delhi'
+    assert result['pollutants'] == MOCK_SUCCESS_RESPONSE_DELHI['data']['iaqi']
+    assert result['risks'] == ["Mocked PM2.5 Risk"]
+    mock_get_city_aqi_data.assert_called_once_with("Delhi")
+
+@patch('src.api_integration.client.get_city_aqi_data')
+def test_get_pollutant_risks_unknown_station_wrapper(mock_get_city_aqi_data):
+    """
+    Tests that the wrapper returns a standard error dict for an unknown station.
+    """
+    mock_get_city_aqi_data.return_value = None # This simulates "Unknown station"
+    
+    result = get_current_pollutant_risks_for_city("Atlantis, Nowhere")
+    
+    assert isinstance(result, dict)
+    assert 'error' in result
+    assert result['error'] == "Station not found by AQICN."
+
+@patch('src.api_integration.client.get_city_aqi_data')
+def test_get_pollutant_risks_missing_iaqi_data_wrapper(mock_get_city_aqi_data):
+    """
+    Tests that the wrapper handles a successful response that is missing the
+    'iaqi' (pollutants) data field.
+    """
+    # Create a mock response without the 'iaqi' key
+    mock_response = {"status": "ok", "data": {"aqi": 100, "time": {"s": "..."}}}
+    mock_get_city_aqi_data.return_value = mock_response
+    
+    result = get_current_pollutant_risks_for_city("NoIaqiCity, Test")
+    
+    assert isinstance(result, dict)
+    assert 'error' in result
+    assert result['error'] == 'Pollutant data or timestamp missing.'

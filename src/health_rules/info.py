@@ -50,8 +50,8 @@ def get_aqi_info(aqi_value):
         return None
 
     # --- THIS IS THE CRITICAL FIX ---
-    # Round the value to the nearest integer to match the scale's boundaries.
-    aqi_value = int(round(aqi_value))
+    # To handle "round half up" correctly (e.g., 100.5 -> 101), we add 0.5 and cast to int.
+    aqi_value = int(aqi_value + 0.5)
     
     # 2. Find the matching category in the defined scale.
     for category in AQI_SCALE:

@@ -53,6 +53,9 @@ from src.health_rules.info import get_aqi_info, AQI_SCALE # Import function and 
     # Test cases for values above the highest defined range
     (550,  "Severe"), 
     (1000, "Severe"), 
+    # Test cases for floating point values
+    (100.4, "Satisfactory"), # Should round down to 100
+    (100.5, "Moderate"),     # Should round up to 101
 ])
 def test_get_aqi_info_levels(aqi_value, expected_level):
     """
@@ -60,8 +63,8 @@ def test_get_aqi_info_levels(aqi_value, expected_level):
     range of valid numerical inputs, including boundary values.
     """
     result = get_aqi_info(aqi_value)
-    assert result is not None 
-    assert result['level'] == expected_level 
+    assert result is not None, f"Expected a result for AQI value {aqi_value}, but got None."
+    assert result['level'] == expected_level, f"For AQI {aqi_value}, expected '{expected_level}' but got '{result['level']}'"
 
 def test_get_aqi_info_structure():
     """
