@@ -1,4 +1,4 @@
-/* File: assets/performance_style.css (CORRECTED) */
+/* File: assets/performance_style.css */
 
 .performance-hub-shell {
     background-color: #0D1117;
@@ -16,15 +16,24 @@
     padding-bottom: 20px;
 }
 .hub-header-image {
-    max-width: 550px; /* Matches the design spec width */
-    width: 90%;       /* Ensures it scales down nicely on smaller screens */
-    height: auto;     /* Maintains the correct aspect ratio */
-    margin-bottom: 15px; /* Adds space between the logo and the link below it */
+    max-width: 550px; 
+    width: 90%;       
+    height: auto;    
+    margin-bottom: 15px; 
 }
 .performance-header p { color: #8B949E; font-size: 1.1rem; }
 
-.performance-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; }
-@media (max-width: 1200px) { .performance-grid { grid-template-columns: 1fr; } }
+.performance-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 25px;
+}
+
+@media (max-width: 1200px) {
+    .performance-grid {
+        grid-template-columns: 1fr;
+    }
+}
 
 .performance-column { display: flex; flex-direction: column; gap: 25px; min-width: 0; }
 .performance-column > h3 {
@@ -46,16 +55,15 @@
 }
 .widget-card-perf h4 { color: #E6EDF3; margin-top: 0; margin-bottom: 20px; font-size: 1rem; font-weight: 500; }
 
-/* --- FIX: Scorecard Layout now uses Flexbox for proper alignment --- */
 .scorecard-grid {
     display: flex;
-    flex-wrap: wrap;       /* Allows items to wrap to the next line */
-    justify-content: center; /* Centers the items (will center the bottom row) */
+    flex-wrap: wrap;       
+    justify-content: center; 
     gap: 15px;
 }
 .scorecard {
-    flex: 1 1 30%; /* grow | shrink | basis. This creates the 3-column feel */
-    min-width: 140px; /* Prevents cards from getting too small */
+    flex: 1 1 30%; 
+    min-width: 140px;
     padding: 15px;
     text-align: center;
     background-color: #0D1117;
@@ -75,7 +83,6 @@
 .scorecard-unit { font-size: 1.2rem; color: #8B949E; margin-left: 4px; }
 #uptime-text-perf { font-size: 1.5rem; padding-top: 8px; }
 
-/* --- Collapsible Log Viewer Styles (No changes needed) --- */
 .log-details-container summary { cursor: pointer; color: #58A6FF; font-weight: 500; margin-bottom: 10px; }
 .log-details-container summary:hover { text-decoration: underline; }
 .log-box {
@@ -91,9 +98,8 @@
     white-space: pre;
 }
 
-/* --- Styles for the new Graph Tabs --- */
 .performance-tabs {
-    background-color: #0D1117; /* Darkest background */
+    background-color: #0D1117; 
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding: 0 5px;
 }
@@ -101,23 +107,22 @@
 .performance-tab {
     background-color: transparent !important;
     border: none !important;
-    color: #8B949E !important; /* Dim color for inactive tabs */
+    color: #8B949E !important; 
     padding: 12px 18px !important;
 }
 
 .performance-tab--selected {
     background-color: transparent !important;
     border: none !important;
-    border-bottom: 3px solid #58A6FF !important; /* Blue accent for active tab */
-    color: #E6EDF3 !important; /* Bright color for active tab */
+    border-bottom: 3px solid #58A6FF !important; 
+    color: #E6EDF3 !important; 
 }
 
 .graph-container-perf {
     padding-top: 15px;
-    min-height: 250px; /* Ensures the card doesn't collapse */
+    min-height: 250px; 
 }
 
-/* --- Styles for the new Graph Live Readouts --- */
 .graph-readout-container {
     display: flex;
     justify-content: flex-start;
@@ -134,14 +139,14 @@
 }
 
 .readout-label {
-    color: #8B949E; /* Dim grey for the label */
+    color: #8B949E; 
     font-size: 0.8rem;
     display: flex;
     align-items: center;
 }
 
 .readout-value {
-    color: #E6EDF3; /* Bright white for the value */
+    color: #E6EDF3;
     font-size: 0.9rem;
     font-weight: 500;
 }

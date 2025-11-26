@@ -1,4 +1,5 @@
-# File: pages/performance.py (FINAL CORRECTED VERSION)
+# File: pages/performance.py
+
 """
 This file contains the layout and callbacks for the live Performance Hub page.
 """
@@ -12,7 +13,7 @@ import plotly.graph_objects as go
 from shared_data import cpu_data, ram_data, net_data
 import dash_bootstrap_components as dbc
 
-# --- Imports and setup (No changes needed here) ---
+# --- Imports and setup ---
 try:
     from src.config_loader import read_last_n_log_lines
     PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -53,7 +54,6 @@ layout = html.Div(className="performance-hub-shell", children=[
         )
     ]),
     html.Div(className="performance-grid", children=[
-        # Left & Right columns...
         html.Div(className="performance-column", children=[
             html.Div(className="widget-card-perf", children=[
                 html.H4("Application Process Details"),
@@ -82,10 +82,9 @@ layout = html.Div(className="performance-hub-shell", children=[
                     dcc.Tab(label='Memory', value='tab-ram', className="performance-tab", selected_className="performance-tab--selected"),
                     dcc.Tab(label='Network', value='tab-net', className="performance-tab", selected_className="performance-tab--selected"),
                 ]),
-                # --- FIX: Place dcc.Graph directly in the layout with a fixed ID ---
                 html.Div(className="graph-container-perf", children=[
                     dcc.Graph(
-                        id='performance-time-series-graph', # The new, fixed ID
+                        id='performance-time-series-graph',
                         config={'displayModeBar': False},
                     ),
                     html.Div(id='graph-readout-container', className="graph-readout-container")
@@ -103,14 +102,14 @@ layout = html.Div(className="performance-hub-shell", children=[
     dcc.Interval(id='performance-interval-timer-perf', interval=500, n_intervals=0)
 ])
 
-# --- Helper function (No changes needed) ---
+# --- Helper function ---
 def create_time_series_figure(x, y, name, color, y_axis_title):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=list(x), y=list(y), mode='lines', name=name, line=dict(color=color, width=2), fill='tozeroy', fillcolor=f'rgba({int(color[1:3], 16)}, {int(color[3:5], 16)}, {int(color[5:7], 16)}, 0.3)'))
     fig.update_layout(margin=dict(l=40, r=20, t=10, b=20), plot_bgcolor='#161B22', paper_bgcolor='#161B22', font_color='#E6EDF3', xaxis=dict(showgrid=False), yaxis=dict(title=y_axis_title, gridcolor='rgba(255, 255, 255, 0.1)'), showlegend=False)
     return fig
 
-# --- Main Callback (Corrected) ---
+# --- Main Callback ---
 @callback(
     Output('performance-time-series-graph', 'figure'),
     Output('graph-readout-container', 'children'),
@@ -126,8 +125,6 @@ def create_time_series_figure(x, y, name, color, y_axis_title):
     Input('perf-graph-tabs', 'value')
 )
 def update_live_metrics(n_intervals, active_tab):
-    # --- This function no longer needs `global` ---
-
     # --- 1. Get Latest Values from Global Data ---
     now = datetime.now()
     latest_cpu = cpu_data[-1][1] if cpu_data else 0
@@ -135,7 +132,6 @@ def update_live_metrics(n_intervals, active_tab):
     latest_net_in = net_data[-1][1] if net_data else 0
     latest_net_out = net_data[-1][2] if net_data else 0
 
-    # The rest of the function proceeds as before, using these latest values
     cpu_output = html.Span([f"{latest_cpu:.1f}", html.Span(" %", className="scorecard-unit")])
     ram_output = html.Span([f"{latest_ram:.1f}", html.Span(" %", className="scorecard-unit")])
     net_in_output = html.Span([f"{latest_net_in:.1f}", html.Span(" KB/s", className="scorecard-unit")])

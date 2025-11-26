@@ -1,4 +1,5 @@
-#File: Dashboard.py
+# File: pages/dashboard.py
+
 """
 BreatheEasy - Main Dashboard
 
@@ -29,17 +30,12 @@ import math
 import dash_svg
 
 # --- Setup Project Root Path ---
-# This ensures that the application can find the 'src' directory for imports,
-# regardless of how the script is run.
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 
 # --- Import Backend Functions & Project Modules ---
-# This block attempts to import all required functions from the backend.
-# If any import fails, it defines dummy functions to allow the UI to load
-# in a degraded state for development and layout purposes.
 try:
     from src.api_integration.weather_client import get_current_weather
     from src.analysis.historical import get_historical_data_for_city
@@ -51,12 +47,10 @@ try:
     from src.modeling.predictor import get_daily_summary_forecast
     from src.exceptions import APIError, ModelFileNotFoundError
 except ImportError as e:
-    # This fallback is crucial for frontend development without a full backend setup.
     print(f"CRITICAL ERROR importing backend modules: {e}")
     print("Ensure 'src' directory and all its submodules with __init__.py files are present and correct.")
     traceback.print_exc()
 
-    # Define dummy functions/variables so the app can attempt to load
     def get_current_weather(city_name):
         print(f"Using DUMMY get_current_weather for {city_name}")
         return {"temp_c": "N/A", "condition_icon": None, "condition_text": "N/A", 
@@ -66,7 +60,7 @@ except ImportError as e:
 
     def get_historical_data_for_city(city_name):
         print(f"Using DUMMY get_historical_data_for_city for {city_name}")
-        return pd.DataFrame() # Return an empty DataFrame 
+        return pd.DataFrame() 
     
     def get_current_aqi_for_city(city_name):
         print(f"Using DUMMY get_current_aqi_for_city for {city_name}")
@@ -138,15 +132,12 @@ except ImportError as e:
 
 
 # --- Application Configuration ---
-
-# Load environment variables (e.g., API keys) from a .env file.
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path)
 else:
     print("Warning: .env file not found. API calls might fail or use defaults.")
 
-# List of cities for the main dropdown menu.
 TARGET_CITIES = ['Bangalore', 'Chennai', 'Kolkata', 'Mumbai']
 
 # --- Initialize the Dash App ---
@@ -166,7 +157,7 @@ layout = html.Div(id='app-container', className="app-shell", children=[
         # 1. Page Header with Logo
         html.Div(className="page-header", children=[
             html.Img(id='logo-image', # ADD THIS ID
-                src=dash.get_asset_url('logo_light.png'), # Set the light logo as the default
+                src=dash.get_asset_url('logo_light.png'), 
                 className="logo-image", 
                 alt="BreatheEasy Project Logo")
         ]),
@@ -249,16 +240,12 @@ layout = html.Div(id='app-container', className="app-shell", children=[
 ])
 
 # --- Callbacks ---
-# Callbacks are functions that are automatically called by Dash whenever an
-# input component's property changes, in order to update some output component's property.
-
 @callback(
     Output('current-weather-display', 'children'),
     [Input('city-dropdown', 'value')]
 )
 def update_current_weather(selected_city):
     """Fetches and displays the current weather for the selected city."""
-    # Inner helper function to generate a default/error state layout.
     def get_default_weather_layout(city_name_text="Select a city", error_message=None):
         condition_display_children = ["Condition N/A"]
         condition_style = {}
@@ -284,7 +271,6 @@ def update_current_weather(selected_city):
         return get_default_weather_layout()
 
     try:
-        # The weather API often performs better with the country specified.
         query_city_for_api = f"{selected_city}, India"
         weather_data = get_current_weather(query_city_for_api)
 
@@ -321,12 +307,11 @@ def update_current_weather(selected_city):
         print(f"General error fetching weather for {selected_city}: {e}")
         traceback.print_exc()
         return get_default_weather_layout(city_name_text=selected_city, error_message="Error loading weather.")
-# Note: Further callback implementation details are kept as is, as per the rules.
 
 @callback(
     Output('historical-aqi-trend-graph', 'figure'),
     Input('city-dropdown', 'value'),
-    Input('theme-store', 'data') # ADD THIS NEW INPUT
+    Input('theme-store', 'data') 
 )
 def update_historical_trend_graph(selected_city, current_theme):
     """
@@ -352,14 +337,12 @@ def update_historical_trend_graph(selected_city, current_theme):
             return create_placeholder_figure(f"No historical data available for {selected_city}.")
 
         # Step 2: Resample the data to daily, similar to the new logic
-        # We use .mean() for a more representative daily value than .max()
         daily_aqi_series = df_city_raw['AQI'].resample('D').mean().dropna()
 
-        # --- Step 3: Apply the ROBUST processing from your OLD working code ---
+        # Step 3: Apply the ROBUST processing from your OLD working code
         df_trend = daily_aqi_series.reset_index()
-        df_trend.columns = ['Date', 'AQI'] # Explicitly name the columns
+        df_trend.columns = ['Date', 'AQI'] 
 
-        # Ensure data types are correct
         df_trend['Date'] = pd.to_datetime(df_trend['Date'], errors='coerce')
         df_trend['AQI'] = pd.to_numeric(df_trend['AQI'], errors='coerce')
         df_trend.dropna(subset=['Date', 'AQI'], inplace=True)
@@ -367,14 +350,13 @@ def update_historical_trend_graph(selected_city, current_theme):
         if df_trend.empty:
             return create_placeholder_figure(f"No valid data to plot for {selected_city}.")
 
-        # Convert to lists for Plotly - this is the safest way
         x_values_for_plot = df_trend['Date'].tolist()
         y_values_for_plot = df_trend['AQI'].tolist()
         
         fig = go.Figure(data=[
             go.Scatter(
                 x=x_values_for_plot, y=y_values_for_plot, mode='lines', name='Daily Mean AQI',
-                line=dict(color='var(--accent-primary)') # Use our bright accent color
+                line=dict(color='var(--accent-primary)') 
             )
         ])
 
@@ -384,9 +366,9 @@ def update_historical_trend_graph(selected_city, current_theme):
             title_text=f"Historical Daily Mean AQI for {selected_city}", title_x=0.5,
             xaxis_title="Date", yaxis_title="AQI Value",
             margin=dict(l=50, r=20, t=40, b=40),
-            plot_bgcolor='rgba(0,0,0,0)',     # Ensure transparent background
-            paper_bgcolor='rgba(0,0,0,0)',    # Ensure transparent paper
-            template=graph_template          # Apply the chosen theme template
+            plot_bgcolor='rgba(0,0,0,0)',     
+            paper_bgcolor='rgba(0,0,0,0)',    
+            template=graph_template         
         )
         return fig
         
@@ -487,7 +469,7 @@ def update_current_aqi_details(selected_city):
         ])
 
     except APIError as e:
-        print(f"APIError fetching current AQI for {query_city_for_api}: {e}") # For dev
+        print(f"APIError fetching current AQI for {query_city_for_api}: {e}") 
         return html.Div(className="current-aqi-error-container", children=[
             html.P(f"Service error retrieving AQI for {selected_city}.", className="aqi-error-message")
         ])
@@ -497,7 +479,6 @@ def update_current_aqi_details(selected_city):
         return html.Div(className="current-aqi-error-container", children=[
             html.P(f"Error loading AQI data for {selected_city}.", className="aqi-error-message")
         ])
-# Note: Further callback implementation details are kept as is.
 
 # --- Section 4 & 6: Unified AQI Forecast and Predicted Risks ---
 @callback(
@@ -511,20 +492,16 @@ def update_all_forecast_widgets(selected_city):
     in both Section 4 and Section 6, ensuring consistency.
     """
     if not selected_city:
-        # Return an empty placeholder for both outputs if no city is selected.
         placeholder = html.P("Select a city to view forecast.", style={'textAlign': 'center', 'marginTop': '20px'})
         return placeholder, placeholder
 
     try:
-        # Our new function returns one list that can be used for both sections.
         risks_and_forecast_list = get_daily_summary_forecast(selected_city, days_ahead=3)
 
         if not risks_and_forecast_list:
-            # If the list is empty, it means the forecast failed.
             error_message = html.P(f"Forecast data is currently unavailable for {selected_city}.", className="forecast-error-message")
             return error_message, error_message
 
-        # --- Build Content for Both Sections from the same list ---
         forecast_cards_sec4 = []
         risk_cards_sec6 = []
         
@@ -558,10 +535,9 @@ def update_all_forecast_widgets(selected_city):
                 ])
             )
 
-        return forecast_cards_sec4, html.Div(risk_cards_sec6)
+        return forecast_cards_sec4, risk_cards_sec6
 
     except Exception as e:
-        # If any unexpected error happens, show an error in both widgets.
         print(f"Error in unified forecast callback for {selected_city}: {e}")
         traceback.print_exc()
         error_message = html.P("An error occurred while generating the forecast.", className="forecast-error-message")
@@ -650,7 +626,6 @@ def update_pollutant_risks_display(selected_city):
         print(f"General error updating pollutant risks for {query_city_for_api}: {e}")
         traceback.print_exc()
         return html.P(f"Error loading pollutant risk data for {selected_city}.", className="pollutant-risk-error")
-# Note: Further callback implementation details are kept as is.
 
 # --- THEME TOGGLE CALLBACKS ---
 
