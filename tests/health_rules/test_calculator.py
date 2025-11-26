@@ -1,4 +1,5 @@
 # File: tests/health_rules/test_calculator.py
+
 """
 Unit tests for the CPCB AQI calculation logic in `src/health_rules/calculator.py`.
 """
@@ -69,7 +70,6 @@ def test_calculate_aqi_from_pollutants_co_dominant():
 
 def test_calculate_aqi_from_pollutants_with_missing_values():
     """Tests that missing pollutant values are ignored in the calculation."""
-    # PM2.5 is missing, CO is the only valid pollutant.
     data_row = pd.Series({'PM2.5': None, 'CO': 1.5})
     assert calculate_aqi_from_pollutants(data_row) == 73
 

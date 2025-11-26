@@ -1,4 +1,5 @@
 # File: tests/modeling/test_train.py
+
 """
 Integration tests for the model training script `src/modeling/train.py`.
 """
@@ -26,21 +27,19 @@ def create_fake_feature_dataset(tmp_path):
     Creates a small, temporary feature-rich dataset for testing the training script.
     `tmp_path` is a special pytest fixture that creates a temporary directory.
     """
-    # Create the temporary data directory
     data_dir = tmp_path / "data"
     data_dir.mkdir()
 
     date_range = pd.to_datetime(['2022-01-01', '2022-01-02', '2022-01-03', '2023-01-01', '2023-01-02', '2023-01-03', '2023-01-04'])
     num_rows = len(date_range)
     
-    # Define the structure and some dummy data
     data = {
         'Date': date_range,
         'City': ['TestCity'] * num_rows,
         'AQI': [50, 55, 60, 65, 70, 75, 80],
         'latitude': [10.0] * num_rows,
         'longitude': [10.0] * num_rows,
-        'day_of_week': [5, 6, 0, 6, 0, 1, 2], # Corresponds to the dates
+        'day_of_week': [5, 6, 0, 6, 0, 1, 2], 
         'month': [1] * num_rows,
         'year': [2022, 2022, 2022, 2023, 2023, 2023, 2023],
         'AQI_lag_1_day': [45, 50, 55, 60, 65, 70, 75],
@@ -51,13 +50,12 @@ def create_fake_feature_dataset(tmp_path):
         'relative_humidity_2m_mean': [60, 62, 61, 63, 64, 65, 66],
         'precipitation_sum': [0, 0, 1, 0, 0, 2, 0],
         'wind_speed_10m_mean': [5, 6, 7, 4, 5, 6, 7],
-        'AQI_rolling_mean_3_day': [40, 45, 50, 55, 60, 65, 70], # Added new features
-        'AQI_rolling_mean_7_day': [35, 40, 45, 50, 55, 60, 65], # Added new features
-        'temp_x_humidity': [1200, 1302, 1342, 1449, 1536, 1625, 1716] # Added new features
+        'AQI_rolling_mean_3_day': [40, 45, 50, 55, 60, 65, 70], 
+        'AQI_rolling_mean_7_day': [35, 40, 45, 50, 55, 60, 65], 
+        'temp_x_humidity': [1200, 1302, 1342, 1449, 1536, 1625, 1716] 
     }
     df = pd.DataFrame(data)
     
-    # Save the fake data to a CSV file in the temporary directory
     fake_data_path = data_dir / "fake_master_features.csv"
     df.to_csv(fake_data_path, index=False)
     
@@ -71,10 +69,8 @@ def test_train_and_save_models_creates_output_files(tmp_path, create_fake_featur
     Tests that the train_and_save_models function runs without errors and
     creates the expected model and metadata files.
     """
-    # Get the path to our temporary, fake dataset
     fake_data_path = create_fake_feature_dataset
     
-    # Define a path for our temporary models directory
     models_dir = tmp_path / "models"
     
     # --- Execute the function we are testing ---

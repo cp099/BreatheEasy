@@ -1,4 +1,5 @@
 # File: tests/modeling/test_predictor.py
+
 """
 Integration tests for the prediction script `src/modeling/predictor.py`.
 """
@@ -31,9 +32,7 @@ def mock_dependencies(mocker):
     """
     # 1. Mock the LightGBM model object
     mock_model = MagicMock()
-    # Our model needs a `predict` method that returns a list with one number
-    mock_model.predict.return_value = [150.0] # Always predict a raw AQI of 150
-    # Our model needs to report its expected feature names
+    mock_model.predict.return_value = [150.0]
     mock_model.feature_name_ = [
         'temperature_2m_mean', 'temperature_2m_min', 'temperature_2m_max',
         'relative_humidity_2m_mean', 'precipitation_sum', 'wind_speed_10m_mean',
@@ -88,11 +87,6 @@ def test_get_daily_summary_forecast_success(mock_dependencies):
     assert "level" in forecast[0]
     
     # 2. Assert the "Anchor and Trend" logic
-    # Live AQI was mocked to 135.
-    # The model always predicts 150.
-    # Raw residual = 135 - 150 = -15
-    # The raw trend is 0 (since the model always predicts 150).
-    # So, the final forecast should be the live AQI + 0 trend.
     assert forecast[0]['predicted_aqi'] == 135
     assert forecast[1]['predicted_aqi'] == 135
     assert forecast[2]['predicted_aqi'] == 135
@@ -101,7 +95,6 @@ def test_get_daily_summary_forecast_model_not_found(mocker):
     """
     Tests that the function returns an empty list if the model file is not found.
     """
-    # Mock the model loader to raise the specific error.
     mocker.patch('src.modeling.predictor.load_lgbm_model', side_effect=ModelFileNotFoundError)
     
     forecast = get_daily_summary_forecast("UnknownCity")
@@ -111,9 +104,8 @@ def test_get_daily_summary_forecast_live_aqi_fails(mocker):
     """
     Tests that the function returns an empty list if the live AQI call fails.
     """
-    # Mock the live AQI client to return an error state.
+
     mocker.patch('src.modeling.predictor.get_current_aqi_for_city', return_value={'error': 'API down'})
-    # We still need to mock the other dependencies for the function to run
     mocker.patch('src.modeling.predictor.load_lgbm_model')
     mocker.patch('src.modeling.predictor.pd.read_csv')
 

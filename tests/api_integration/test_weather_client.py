@@ -1,5 +1,6 @@
 
 # File: tests/api_integration/test_weather_client.py
+
 """
 Unit and integration tests for the WeatherAPI.com client (`src/api_integration/weather_client.py`).
 
@@ -18,7 +19,6 @@ from unittest.mock import MagicMock, patch
 import time
 
 # --- Setup Project Root Path ---
-# This allows the script to be run from anywhere and still find the project root.
 try:
     TEST_DIR = os.path.dirname(__file__); PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, '..', '..'))
 except NameError:

@@ -1,4 +1,5 @@
-# File: tests/health_rules/test_interpreter.py (Refined)
+# File: tests/health_rules/test_interpreter.py
+
 """
 Unit tests for the pollutant risk interpretation logic in `src/health_rules/interpreter.py`.
 """
@@ -33,7 +34,7 @@ def test_interpret_risks_single_pollutant_moderate():
 
 def test_interpret_risks_multiple_pollutants():
     """Tests when multiple pollutants trigger risks at different severity levels."""
-    iaqi_data = {'pm10': {'v': 260}, 'o3': {'v': 115}} # PM10 Poor, O3 Moderate
+    iaqi_data = {'pm10': {'v': 260}, 'o3': {'v': 115}} 
     risks = interpret_pollutant_risks(iaqi_data)
     assert len(risks) == 2
     assert any("PM10 (Poor):" in risk for risk in risks)
@@ -41,7 +42,7 @@ def test_interpret_risks_multiple_pollutants():
 
 def test_interpret_risks_highest_severity_is_chosen():
     """Ensures that only the risk for the highest threshold exceeded is reported per pollutant."""
-    iaqi_data = {'pm25': {'v': 130}} # Should trigger "Very Poor" (>=121), not lower levels.
+    iaqi_data = {'pm25': {'v': 130}} 
     risks = interpret_pollutant_risks(iaqi_data)
     assert len(risks) == 1
     assert "PM25 (Very Poor):" in risks[0]
@@ -50,14 +51,12 @@ def test_interpret_risks_highest_severity_is_chosen():
 
 def test_interpret_risks_boundary_values():
     """Tests values that fall exactly on a threshold boundary, and just below it."""
-    # Test exactly on the PM2.5 'Moderate' threshold (>= 61)
     assert len(interpret_pollutant_risks({'pm25': {'v': 61}})) == 1
-    # Test just below the PM2.5 'Moderate' threshold
     assert len(interpret_pollutant_risks({'pm25': {'v': 60.9}})) == 0
 
 def test_interpret_risks_with_unknown_pollutant():
     """Tests that pollutants not defined in the thresholds dictionary are ignored."""
-    iaqi_data = {'pm25': {'v': 200}, 'xyz': {'v': 100}} # 'xyz' is not defined
+    iaqi_data = {'pm25': {'v': 200}, 'xyz': {'v': 100}} 
     risks = interpret_pollutant_risks(iaqi_data)
     assert len(risks) == 1
     assert "PM25 (Very Poor):" in risks[0]

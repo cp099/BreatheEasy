@@ -1,4 +1,5 @@
-# File: scripts/build_daily_features.py (FINAL CORRECTED VERSION - 2)
+# File: scripts/build_daily_features.py
+
 """
 This script builds the final, feature-rich DAILY dataset for model training.
 """
@@ -16,7 +17,6 @@ AQI_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "Post-Processing", "CSV_Files
 WEATHER_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "Post-Processing", "CSV_Files", "Master_Dataset_V2.csv")
 OUTPUT_FILE_PATH = os.path.join(PROJECT_ROOT, "data", "Post-Processing", "CSV_Files", "Master_Daily_Features.csv")
 
-# Use the exact city names as they appear in the source CSV files.
 TARGET_CITIES = ['Bangalore', 'Chennai', 'Kolkata', 'Mumbai']
 TARGET_STATIONS = {
     "Bangalore": {"lat": 12.9152, "lon": 77.6103},
@@ -31,12 +31,8 @@ def create_daily_features(aqi_path, weather_path, output_path):
     # --- Step 1: Load and Prepare Daily AQI Data ---
     print(f"Loading daily AQI data from: {aqi_path}")
     try:
-        # --- THIS IS THE CRITICAL FIX ---
-        # Load the data, telling pandas to parse the correct 'Datetime' column.
         aqi_df = pd.read_csv(aqi_path, parse_dates=['Datetime'])
-        # Rename 'Datetime' to 'Date' to standardize it for the merge.
         aqi_df.rename(columns={'Datetime': 'Date'}, inplace=True)
-        # --- END OF CRITICAL FIX ---
         
         aqi_df = aqi_df[aqi_df['City'].isin(TARGET_CITIES)].copy()
         aqi_df = aqi_df[['Date', 'City', 'AQI']].dropna(subset=['AQI'])

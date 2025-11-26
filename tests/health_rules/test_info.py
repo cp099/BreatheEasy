@@ -1,5 +1,6 @@
 
 # File: tests/health_rules/test_info.py
+
 """
 Unit tests for the AQI scale definitions and utilities in `src/health_rules/info.py`.
 
@@ -14,18 +15,16 @@ import sys
 import os
 
 # --- Setup Project Root Path ---
-# This allows the script to be run from anywhere and still find the project root.
 try:
     TEST_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, '..', '..'))
 except NameError:
-    # Fallback for environments where __file__ is not defined.
     PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname('.'), '..')) 
 if PROJECT_ROOT not in sys.path:
      sys.path.insert(0, PROJECT_ROOT)
 
 # --- Import the function and data to be tested ---
-from src.health_rules.info import get_aqi_info, AQI_SCALE # Import function and scale data
+from src.health_rules.info import get_aqi_info, AQI_SCALE 
 
 
 # --- Test Cases for get_aqi_info ---
@@ -54,8 +53,8 @@ from src.health_rules.info import get_aqi_info, AQI_SCALE # Import function and 
     (550,  "Severe"), 
     (1000, "Severe"), 
     # Test cases for floating point values
-    (100.4, "Satisfactory"), # Should round down to 100
-    (100.5, "Moderate"),     # Should round up to 101
+    (100.4, "Satisfactory"), 
+    (100.5, "Moderate"),   
 ])
 def test_get_aqi_info_levels(aqi_value, expected_level):
     """
@@ -70,12 +69,10 @@ def test_get_aqi_info_structure():
     """
     Ensures the dictionary returned by `get_aqi_info` has the expected structure and keys.
     """
-    # Use a typical valid value for the structure check.
     result = get_aqi_info(75) 
     assert result is not None
     assert isinstance(result, dict)
 
-    # Verify that the result contains exactly the required keys.
     expected_keys = {"range", "level", "color", "implications"}
     assert expected_keys == result.keys() 
 
@@ -83,12 +80,9 @@ def test_get_aqi_info_invalid_input():
     """
     Checks that `get_aqi_info` handles various invalid inputs by correctly returning None.
     """
-    # Test with negative numbers (integer and float)
     assert get_aqi_info(-10) is None, "Should return None for negative integer."
     assert get_aqi_info(-0.1) is None, "Should return None for negative float."
-    # Test with None 
     assert get_aqi_info(None) is None, "Should return None for None input."
-    # Test with incorrect data types
     assert get_aqi_info("abc") is None, "Should return None for a string."
     assert get_aqi_info([10]) is None, "Should return None for a list."
 
@@ -107,10 +101,8 @@ def test_aqi_scale_consistency():
         assert "range" in category
         range_str = category["range"]
         try:
-            # Assumes format is "low-high".
             if '-' in range_str:
                 low, high = map(int, range_str.split('-'))
-                # Check that the current range starts one after the previous one ended.
                 assert low == last_high + 1, f"Gap or overlap found at range '{range_str}'."
                 assert low <= high, f"Low value '{low}' is greater than high value '{high}'."
                 last_high = high

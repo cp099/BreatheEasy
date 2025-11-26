@@ -1,5 +1,6 @@
 
 # File: tests/api_integration/test_client.py
+
 """
 Unit and integration tests for the AQICN API client (`src/api_integration/client.py`).
 
@@ -18,7 +19,6 @@ import json
 from unittest.mock import MagicMock, patch 
 
 # --- Setup Project Root Path ---
-# This allows the script to be run from anywhere and still find the project root.
 try:
     TEST_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, '..', '..'))
@@ -116,7 +116,6 @@ def test_get_city_aqi_data_http_error_401(mocker):
     
     expected_full_exception_message = f"AQICN API Error: {base_message_from_client} (Status: 401)"
     
-    # Assert that the correct custom exception was raised with the expected message.
     assert excinfo.value.args[0] == expected_full_exception_message
     assert excinfo.value.service == "AQICN"
     assert excinfo.value.status_code == 401
@@ -154,14 +153,13 @@ def test_get_current_aqi_success_wrapper(mock_get_city_aqi_data):
     mock_get_city_aqi_data.return_value = MOCK_SUCCESS_RESPONSE_DELHI
     result = get_current_aqi_for_city("Delhi, India") 
     
-    # The wrapper should extract and format the key data points.
     assert isinstance(result, dict)
     assert result.get('error') is None 
     assert result['city'] == 'Delhi' 
     assert result['aqi'] == 178
     assert result['station'] == "Major Dhyan Chand National Stadium, Delhi"
     assert result['time'] == "2025-04-21 12:00:00"
-    mock_get_city_aqi_data.assert_called_once_with("Delhi") # Check it called with the simple city name.
+    mock_get_city_aqi_data.assert_called_once_with("Delhi") 
 
 @patch('src.api_integration.client.get_city_aqi_data')
 def test_get_current_aqi_unknown_station_wrapper(mock_get_city_aqi_data):
@@ -237,7 +235,6 @@ def test_get_pollutant_risks_success_wrapper(mock_get_city_aqi_data, mocker):
     Tests that the pollutant risks wrapper correctly parses a successful response
     and calls the interpreter function.
     """
-    # We also need to mock the interpreter function to isolate this test.
     mocker.patch(
         'src.api_integration.client.interpret_pollutant_risks', 
         return_value=["Mocked PM2.5 Risk"]
@@ -258,7 +255,7 @@ def test_get_pollutant_risks_unknown_station_wrapper(mock_get_city_aqi_data):
     """
     Tests that the wrapper returns a standard error dict for an unknown station.
     """
-    mock_get_city_aqi_data.return_value = None # This simulates "Unknown station"
+    mock_get_city_aqi_data.return_value = None 
     
     result = get_current_pollutant_risks_for_city("Atlantis, Nowhere")
     
@@ -272,7 +269,6 @@ def test_get_pollutant_risks_missing_iaqi_data_wrapper(mock_get_city_aqi_data):
     Tests that the wrapper handles a successful response that is missing the
     'iaqi' (pollutants) data field.
     """
-    # Create a mock response without the 'iaqi' key
     mock_response = {"status": "ok", "data": {"aqi": 100, "time": {"s": "..."}}}
     mock_get_city_aqi_data.return_value = mock_response
     
