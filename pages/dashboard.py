@@ -235,7 +235,7 @@ layout = html.Div(id='app-container', className="app-shell", children=[
     # 4. Page Footer
     html.Div(className="page-footer", children=[
         html.P("Project Team: Arnav Vaidya, Chirag P Patil, Kimaya Anand | School: Delhi Public School Bangalore South"),
-        html.P("Copyright © 2025 BreatheEasy Project Team. Licensed under MIT License.")
+        html.P("Copyright © 2025 BreatheEasy Project Team. Licensed under Apache License.")
     ]) 
 ])
 
