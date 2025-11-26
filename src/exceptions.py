@@ -1,5 +1,6 @@
 
 # File: src/exceptions.py
+
 """
 Custom exception classes for the BreatheEasy application.
 
@@ -13,7 +14,6 @@ class BreatheEasyError(Exception):
     pass
 
 # --- Data and File Errors ---
-
 class DataFileNotFoundError(BreatheEasyError, FileNotFoundError):
     """Raised when the primary data file cannot be found."""
     pass
@@ -27,7 +27,6 @@ class ModelFileNotFoundError(BreatheEasyError, FileNotFoundError):
     pass
 
 # --- API Errors ---
-
 class APIError(BreatheEasyError):
     """Base class for external API related errors."""
     def __init__(self, message="API error occurred", status_code=None, service="Unknown"):
@@ -56,7 +55,6 @@ class APITimeoutError(APIError, TimeoutError):
         super().__init__(message, service=service)
 
 # --- Modeling Errors ---
-
 class ModelLoadError(BreatheEasyError):
     """Raised when a model file cannot be loaded or deserialized."""
     pass
@@ -66,7 +64,6 @@ class PredictionError(BreatheEasyError):
     pass
 
 # --- Configuration Errors ---
-
 class ConfigError(BreatheEasyError):
     """Raised for general configuration loading/parsing issues."""
     pass

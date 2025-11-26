@@ -138,9 +138,33 @@ def get_daily_summary_forecast(city_name: str, days_ahead: int = 3):
         
         # Apply these changes to our anchored value.
         for change in day_to_day_changes:
-            # Dampen the change by a factor (e.g., 0.75) to make the forecast less volatile.
-            # This prevents extreme jumps predicted by the raw model.
-            smoothed_change = change * 0.75 
+            
+            # --- START: New Dynamic Smoothing Logic ---
+            
+            # Define thresholds for the residual.
+            low_residual_threshold = 20  # If error is less than 20, trust the model more.
+            high_residual_threshold = 100 # If error is over 100, trust the model very little.
+
+            # Define smoothing factors based on trust.
+            trust_factor_high = 0.8  # Trust the model's trend 80%
+            trust_factor_low = 0.2   # Only trust the model's trend 20%
+            
+            abs_residual = abs(live_residual)
+
+            if abs_residual <= low_residual_threshold:
+                smoothing_factor = trust_factor_high
+            elif abs_residual >= high_residual_threshold:
+                smoothing_factor = trust_factor_low
+            else:
+                # Linearly interpolate the smoothing factor for residuals between the thresholds.
+                # This creates a smooth transition from high trust to low trust.
+                slope = (trust_factor_low - trust_factor_high) / (high_residual_threshold - low_residual_threshold)
+                smoothing_factor = trust_factor_high + slope * (abs_residual - low_residual_threshold)
+
+            log.info(f"Live residual is {live_residual:.1f}. Applying dynamic smoothing factor of {smoothing_factor:.2f}.")
+            smoothed_change = change * smoothing_factor
+            
+            # --- END: New Dynamic Smoothing Logic ---
             
             next_day_value = final_forecast_values[-1] + smoothed_change
             final_forecast_values.append(next_day_value)

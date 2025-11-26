@@ -1,4 +1,5 @@
-# File: src/modeling/train.py (Refactored for Daily Features)
+# File: src/modeling/train.py
+
 """
 This script trains a LightGBM model for each target city using the
 feature-rich DAILY dataset created by the build_daily_features.py script.
@@ -47,9 +48,7 @@ def train_and_save_models(data_path: str, models_dir: str):
         print(f"\n--- Training Model for: {city} ---")
         
         city_df = df[df['City'] == city].copy()
-        
-        # Define features (X) and target (y)
-        # We drop 'Date' and 'City' as they are not features for the model.
+
         features = [col for col in city_df.columns if col not in ['Date', 'City', TARGET_VARIABLE]]
         X = city_df[features]
         y = city_df[TARGET_VARIABLE]
@@ -64,21 +63,19 @@ def train_and_save_models(data_path: str, models_dir: str):
 
         print(f"Training with {len(X_train)} samples, validating with {len(X_val)} samples.")
         
-        # Define the LightGBM model with final, robust Hyperparameter tuning
         lgbm = lgb.LGBMRegressor(
             objective='regression_l1',
-            n_estimators=300,         # A moderate number of trees
-            learning_rate=0.05,       # A standard learning rate
-            num_leaves=20,            # Simple trees
-            max_depth=7,              # Even shallower trees to force generalization
+            n_estimators=300,        
+            learning_rate=0.05,       
+            num_leaves=20,            
+            max_depth=7,              
+
+            subsample=0.7,           
+            subsample_freq=1,        
+            colsample_bytree=0.7,     
             
-            # --- These are the key new parameters for stability ---
-            subsample=0.7,            # Use only 70% of data for each tree
-            subsample_freq=1,         # Perform bagging at every iteration
-            colsample_bytree=0.7,     # Use only 70% of features for each tree
-            
-            reg_alpha=0.1,            # L1 regularization
-            reg_lambda=0.1,           # L2 regularization
+            reg_alpha=0.1,           
+            reg_lambda=0.1,           
             random_state=42,
             n_jobs=-1
         )
@@ -99,7 +96,6 @@ def train_and_save_models(data_path: str, models_dir: str):
             joblib.dump(lgbm, model_path)
             print(f"Successfully saved model for {city} to: {model_path}")
             
-            # --- NEW: Save feature importances and validation score ---
             # 1. Save Feature Importances
             importances_df = pd.DataFrame({
                 'feature': lgbm.booster_.feature_name(),

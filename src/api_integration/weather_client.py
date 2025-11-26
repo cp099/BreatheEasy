@@ -21,12 +21,10 @@ import json
 import time
 
 # --- Setup Project Root Path ---
-# This allows the script to be run from anywhere and still find the project root.
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 except NameError:
-    # Fallback for environments where __file__ is not defined.
     PROJECT_ROOT = os.path.abspath('.')
     if 'src' not in os.listdir(PROJECT_ROOT):
         alt_root = os.path.abspath(os.path.join(PROJECT_ROOT, '..'))
@@ -34,13 +32,10 @@ except NameError:
 if PROJECT_ROOT not in sys.path: sys.path.insert(0, PROJECT_ROOT)
 
 # --- Import Project Modules & Dependencies ---
-# The config_loader import also triggers the centralized logging setup.
 try:
     from src.config_loader import CONFIG
     from src.exceptions import APIKeyError, APITimeoutError, APINotFoundError, APIError, ConfigError
 except ImportError as e:
-    # Fallback if dependencies or project structure are not found.
-    # Defines dummy classes to allow the module to be imported without crashing.
     logging.basicConfig(level=logging.WARNING)
     logging.error(f"Weather Client: Could not import dependencies. Error: {e}", exc_info=True)
     CONFIG = {'apis': {'weatherapi': {}}, 'api_retries': {}, 'api_retry_delay_seconds': {}}
@@ -66,10 +61,8 @@ except ImportError as e:
     class ConfigError(Exception):
         pass
 except Exception as e:
-    # Broad exception for other potential import errors.
     logging.basicConfig(level=logging.WARNING)
     logging.error(f"Weather Client: Critical error importing dependencies: {e}", exc_info=True)
-    # Re-raising might be appropriate here if the app cannot function at all.
     CONFIG = {'apis': {'weatherapi': {}}, 'api_retries': {}, 'api_retry_delay_seconds': {}}
     class APIKeyError(Exception): 
         def __init__(self, message, service=None): super().__init__(message); self.service=service; self.status_code=401
@@ -86,12 +79,9 @@ log = logging.getLogger(__name__)
 
 # --- Load API Token from .env file ---
 try:
-    # Looks for .env in the project root directory (e.g., BREATHEEASY/.env).
     dotenv_path = os.path.join(PROJECT_ROOT, '.env')
     if os.path.exists(dotenv_path): load_dotenv(dotenv_path=dotenv_path)
 except Exception: 
-    # Silently pass if there's an issue loading the .env file.
-    # The os.getenv call below is the canonical check.
     pass
 
 # --- Module Configuration ---
@@ -114,14 +104,11 @@ def _make_weatherapi_request(url, params, city_name_for_log, max_retries_cfg, re
             response = requests.get(url, params=params, timeout=API_TIMEOUT_CFG)
             response.raise_for_status()
             data = response.json()
-            # Handle cases where the API returns a 200 OK but includes an error in the JSON payload.
             if "error" in data:
                 err_info = data["error"]; err_msg = err_info.get('message', f'Unknown API error for {context}'); err_code = err_info.get('code')
                 log.error(f"WeatherAPI JSON error ({context}) for '{city_name_for_log}' (Code: {err_code}): {err_msg}")
-                # Specific error code for 'No location found'. A valid, non-exceptional case.
                 if err_code == 1006: 
                     return None
-                # Codes related to invalid API keys.
                 elif err_code in [1002,1003,1005,2006,2007,2008]: raise APIKeyError(f"Code {err_code}: {err_msg}", service="WeatherAPI")
                 else: 
                     base_msg_for_exception = f"HTTP error {status_code} encountered for {context} query on '{city_name_for_log}'."
@@ -135,20 +122,17 @@ def _make_weatherapi_request(url, params, city_name_for_log, max_retries_cfg, re
             detail = error_lines[0] if error_lines else str(http_err)
             core_msg = f"HTTP error {status} for {context} query: '{city_name_for_log}'. Detail: {detail}"
 
-            # Retry on 5xx server-side errors.
             if 500 <= status <= 599 and attempt < max_retries_cfg:
                 log.warning(f"{core_msg} (attempt {attempt+1}). Retrying in {retry_delay_cfg}s. Resp: {resp_text}")
                 last_exception = APIError(core_msg, status_code=status, service="WeatherAPI")
                 time.sleep(retry_delay_cfg); continue
             else:
-                 # Handle non-retriable errors (4xx) or final failed retry (5xx).
                 log.error(f"Final/Non-retry {core_msg}. Resp: {resp_text}")
                 if status == 401: raise APIKeyError(f"Auth (401) for {context} query: '{city_name_for_log}'. Check key.", service="WeatherAPI") from http_err
                 elif status == 403: raise APIError(f"Forbidden (403) for {context} query: '{city_name_for_log}'.", status_code=403, service="WeatherAPI") from http_err
                 elif status == 400 and "no matching location found" in resp_text.lower(): return None
                 elif status == 404: raise APINotFoundError(f"Endpoint not found (404) for URL: {url}", service="WeatherAPI") from http_err
                 else: 
-                     # Generic case for unhandled 4xx or 5xx errors after retries.
                     clean_core_msg = f"HTTP error {status} for {context} query: '{city_name_for_log}'." 
                     log.error(f"WeatherAPI: Raising APIError with: {clean_core_msg} Original HTTPError: {str(http_err)}. Resp: {resp_text}") 
                     raise APIError(clean_core_msg, status_code=status, service="WeatherAPI") from http_err 
@@ -165,14 +149,12 @@ def _make_weatherapi_request(url, params, city_name_for_log, max_retries_cfg, re
             msg = f"Invalid data format from WeatherAPI ({context}) for '{city_name_for_log}': {str(json_e)}. Response snippet: {response_text}"
             log.error(msg); raise ValueError(msg) from json_e
         except (APIKeyError, APINotFoundError, APIError) as specific_error: 
-             # Re-raise specific, already handled exceptions immediately.
             raise specific_error
         except Exception as e_general:
             core_msg = f"Unexpected error for {context}: {e_general}"
             if attempt < max_retries_cfg: log.error(f"{core_msg} (attempt {attempt+1}). Retrying...", exc_info=True); last_exception = APIError(core_msg, service="WeatherAPI"); time.sleep(retry_delay_cfg); continue
             else: log.error(f"Final unexpected error. {core_msg}", exc_info=True); raise APIError(core_msg, service="WeatherAPI") from e_general
     if last_exception: 
-        # If the loop finished due to exhausted retries, raise the last captured exception.
         raise last_exception
     return None
 
@@ -216,7 +198,6 @@ def get_weather_forecast(city_name, days=3):
     forecast_retries = CONFIG.get('api_retries', {}).get('weather_api_forecast', DEFAULT_RETRIES)
     forecast_delay = CONFIG.get('api_retry_delay_seconds', {}).get('weather_api_forecast', DEFAULT_RETRY_DELAY)
 
-     # Ensure 'days' is within the API's accepted range (1-14).
     days = max(1, min(days, 14))
     params = {'key': WEATHERAPI_API_KEY, 'q': city_name, 'days': days, 'aqi': 'no', 'alerts': 'no'}
     data = _make_weatherapi_request(WEATHERAPI_FORECAST_URL_CFG, params, city_name, forecast_retries, forecast_delay, "weather forecast")
@@ -225,15 +206,13 @@ def get_weather_forecast(city_name, days=3):
     if not fc_days_data: log.warning(f"No 'forecastday' data for {city_name}"); return None
     processed_fc = []
     for day_data in fc_days_data:
-        day_info = day_data.get("day", {}); cond_info = day_info.get("condition", {}) # condition is under day_info
+        day_info = day_data.get("day", {}); cond_info = day_info.get("condition", {}) 
         processed_fc.append({"date": day_data.get("date"), "avgtemp_c": day_info.get("avgtemp_c"), "avghumidity": day_info.get("avghumidity"), "maxwind_kph": day_info.get("maxwind_kph"), "totalprecip_mm": day_info.get("totalprecip_mm"), "uv": day_info.get("uv"), "condition_text": cond_info.get("text")})
     return processed_fc
 
 
 # --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
-    # This block runs only when the script is executed directly.
-    # It serves as a quick test and demonstration of the module's functions.
     if not logging.getLogger().hasHandlers():
          logging.basicConfig(stream=sys.stdout, level=logging.INFO, 
                             format='%(asctime)s - [%(levelname)s] - %(name)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
@@ -249,7 +228,6 @@ if __name__ == "__main__":
             if weather_data:
                 print(f"  SUCCESS: Temp={weather_data.get('temp_c')}C, Cond={weather_data.get('condition_text')}")
             elif weather_data is None and city == "Atlantisxyz123":
-                # For this specific test city, we expect to get None back.
                 print(f"  SUCCESS (Expected): City '{city}' not found by WeatherAPI, returned None.")
             else:
                 print(f"  WARNING/UNEXPECTED: No weather data returned for '{city}'. Response: {weather_data}")

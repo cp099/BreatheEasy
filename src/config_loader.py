@@ -1,5 +1,6 @@
 
 # File: src/config_loader.py
+
 """
 Handles loading the project's YAML configuration and setting up centralized logging.
 
@@ -22,21 +23,17 @@ import sys
 from functools import lru_cache 
 
 # --- Determine Project Root ---
-# This robust logic allows the application to find the root directory
-# whether it's run as a script, a module, or in an interactive environment.
 
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
 except NameError:
-    # Fallback for environments where __file__ is not defined.
     PROJECT_ROOT = os.path.abspath('.')
     if not os.path.exists(os.path.join(PROJECT_ROOT, 'src')):
          alt_root = os.path.abspath(os.path.join(PROJECT_ROOT, '..'))
          if os.path.exists(os.path.join(alt_root, 'src')):
              PROJECT_ROOT = alt_root
          else:
-              # A basic logger is used here as a last resort.
               logging.basicConfig(level=logging.WARNING)
               logging.warning(f"ConfigLoader: Could not reliably determine project root from CWD: {PROJECT_ROOT}")
 
@@ -44,7 +41,6 @@ except NameError:
 CONFIG_FILE_NAME = 'config.yaml'
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config', CONFIG_FILE_NAME)
 
-# Ensure the project root is on the Python path for consistent imports.
 if PROJECT_ROOT not in sys.path:
      sys.path.insert(0, PROJECT_ROOT)
 
@@ -119,7 +115,6 @@ def setup_logging(config):
     if not isinstance(config, dict): config = {}
     log_cfg = config.get('logging', {})
 
-    # Default values are used if specific keys are missing from the config.
     log_level_str = log_cfg.get('level', 'INFO')
     log_format = log_cfg.get('format', '%(asctime)s - [%(levelname)s] - %(name)s - %(message)s')
     log_to_file = log_cfg.get('log_to_file', False)
@@ -127,39 +122,32 @@ def setup_logging(config):
     log_file_level_str = log_cfg.get('log_file_level', 'DEBUG')
     log_console_level_str = log_cfg.get('log_console_level', 'INFO')
 
-    # Convert string levels to logging constants.
     root_log_level = getattr(logging, log_level_str.upper(), logging.INFO)
     file_log_level = getattr(logging, log_file_level_str.upper(), logging.DEBUG)
     console_log_level = getattr(logging, log_console_level_str.upper(), logging.INFO)
 
 
     root_logger = logging.getLogger()
-    # Set the root logger to the lowest level of its handlers to capture all messages.
     root_logger.setLevel(min(root_log_level, file_log_level, console_log_level))
 
-    # Clear any existing handlers to prevent duplicate output.
     for handler in root_logger.handlers[:]: root_logger.removeHandler(handler)
     formatter = logging.Formatter(log_format)
 
-    # Configure console handler.
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(console_log_level)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
-    # This initial message confirms console logging is active.
     logging.info(f"Console logging configured at level: {logging.getLevelName(console_log_level)}") 
 
-    # Configure optional file handler.
     if log_to_file:
         try:
             log_file_path = os.path.join(PROJECT_ROOT, log_filename)
-            # Use RotatingFileHandler to prevent log files from growing indefinitely.
             file_handler = logging.handlers.RotatingFileHandler(
                 log_file_path, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
             file_handler.setLevel(file_log_level)
             file_handler.setFormatter(formatter)
             root_logger.addHandler(file_handler)
-            logging.info(f"File logging configured at level: {logging.getLevelName(file_log_level)} to {log_file_path}") # Log after adding handler
+            logging.info(f"File logging configured at level: {logging.getLevelName(file_log_level)} to {log_file_path}") 
         except Exception as e:
              logging.error(f"Failed to configure file logging: {e}", exc_info=True)
     else:
@@ -169,7 +157,6 @@ def setup_logging(config):
 # --- Global Initialization: Load config and set up logging on module import ---
 CONFIG = {}
 try:
-    # This is the main execution block that runs when the module is first imported.
     CONFIG = load_config()
     if CONFIG is not None:
          setup_logging(CONFIG)
@@ -205,16 +192,13 @@ def read_last_n_log_lines(n=10):
             return ["Log file not found."]
         
         with open(log_file_path, 'r', encoding='utf-8') as f:
-            # Read all lines and return the last N
             lines = f.readlines()
             return lines[-n:]
     except Exception as e:
-        # We must never let a logging utility crash the app
         return [f"Error reading log file: {e}"]
 
 # --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
-    # This block demonstrates the module's behavior when run directly.
     print("\n--- Running config_loader.py Self-Demonstration ---\n")
     print(f"Project Root determined as: {PROJECT_ROOT}")
     print(f"Configuration file path is: {CONFIG_PATH}\n")
@@ -223,15 +207,12 @@ if __name__ == "__main__":
     retrieved_config = get_config()
     if retrieved_config:
         print("Successfully retrieved configuration:")
-        # Pretty print a snippet of the config
         import json
         print(json.dumps(retrieved_config.get('modeling', {}), indent=2))
     else:
         print("Configuration is empty, likely due to a loading error reported above.")
 
     print("\n--- Logging Demonstration ---")
-    # The initial logging setup should already be visible above this point.
-    # Here we demonstrate logging from another module's perspective.
     local_log = logging.getLogger("config_loader_main_test")
     local_log.debug("This is a debug message.")
     local_log.info("This is an info message.")

@@ -1,4 +1,5 @@
-# File: app.py (CORRECTED)
+# File: app.py
+
 """
 Main application file. Imports and updates the central data stores.
 """
@@ -40,7 +41,6 @@ def update_background_data(n):
     global last_net_io, last_net_time
     
     now = datetime.now()
-    # ... (rest of the logic is the same)
     cpu_percent = psutil.cpu_percent()
     ram_percent = psutil.virtual_memory().percent
     

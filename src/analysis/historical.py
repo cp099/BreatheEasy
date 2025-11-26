@@ -1,4 +1,5 @@
-# File: src/analysis/historical.py (Refactored for Hourly Data)
+# File: src/analysis/historical.py
+
 """
 Provides functions for accessing the new, feature-rich hourly dataset.
 """
@@ -29,7 +30,7 @@ def get_historical_data_for_city(city_name: str):
             _df_cached = _df_cached.set_index('Datetime')
         except FileNotFoundError:
             log.error(f"FATAL: Master feature data file not found at {DATA_PATH}")
-            return pd.DataFrame() # Return empty dataframe on error
+            return pd.DataFrame()
     
     city_data = _df_cached[_df_cached['City'] == city_name].copy()
     log.info(f"Returning {len(city_data)} historical records for {city_name}.")

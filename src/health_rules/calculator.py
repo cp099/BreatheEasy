@@ -1,12 +1,11 @@
 # File: src/health_rules/calculator.py
+
 """
 Provides functions to calculate the Air Quality Index (AQI) from raw
 pollutant concentrations based on the Indian CPCB NAQI standard.
 """
 import pandas as pd
 
-# CPCB breakpoints for calculating AQI sub-indices.
-# Format: {pollutant_name: [(BP_low, BP_high, AQI_low, AQI_high), ...]}
 POLLUTANT_BREAKPOINTS = {
     'pm10': [(0, 50, 0, 50), (51, 100, 51, 100), (101, 250, 101, 200), (251, 350, 201, 300), (351, 430, 301, 400), (431, float('inf'), 401, 500)],
     'pm25': [(0, 30, 0, 50), (31, 60, 51, 100), (61, 90, 101, 200), (91, 120, 201, 300), (121, 250, 301, 400), (251, float('inf'), 401, 500)],
@@ -27,17 +26,15 @@ def calculate_sub_index(value, pollutant):
 
     for bp_low, bp_high, aqi_low, aqi_high in breakpoints:
         if bp_low <= value <= bp_high:
-            # Linear interpolation formula
             sub_index = ((aqi_high - aqi_low) / (bp_high - bp_low)) * (value - bp_low) + aqi_low
             return round(sub_index)
-    return None # Should not be reached if value is within a range
+    return None 
 
 def calculate_aqi_from_pollutants(data_row):
     """
     Calculates the final AQI for a row of data by taking the max of all sub-indices.
     """
     sub_indices = []
-    # Map DataFrame columns to keys in our breakpoints dictionary
     pollutant_map = {'PM2.5': 'pm25', 'PM10': 'pm10', 'NO2': 'no2', 'O3': 'o3', 'CO': 'co', 'SO2': 'so2', 'NH3': 'nh3'}
     
     for df_col, pol_key in pollutant_map.items():

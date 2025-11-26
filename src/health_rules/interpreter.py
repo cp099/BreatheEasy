@@ -1,5 +1,6 @@
 
 # File: src/health_rules/interpreter.py
+
 """
 Interprets health risks based on individual air pollutant concentrations.
 
@@ -14,13 +15,6 @@ import logging
 log = logging.getLogger(__name__)
 
 # --- Pollutant Health Risk Thresholds ---
-# These thresholds are derived from the lower bounds of the CPCB NAQI concentration
-# ranges for different AQI categories (Moderate, Poor, Very Poor, Severe).
-# The associated "risk" text is adapted from the health implications for that
-# overall AQI category, providing a specific warning for each pollutant.
-# The thresholds are listed from highest to lowest severity. The logic in
-# interpret_pollutant_risks will use the first (and therefore highest)
-# threshold that a given value exceeds.
 POLLUTANT_HEALTH_THRESHOLDS = {
     "pm25": [ # PM2.5 (µg/m³)
         {"threshold": 251, "risk": "Serious respiratory impact on healthy people. Serious aggravation of heart or lung disease.", "severity": "Severe"},
@@ -86,17 +80,14 @@ def interpret_pollutant_risks(iaqi_data):
     
     log.info(f"Interpreting risks using CPCB-derived thresholds for iaqi data: {iaqi_data}")
 
-    # Iterate through each pollutant we have thresholds for.
     for pollutant, thresholds in POLLUTANT_HEALTH_THRESHOLDS.items():
         if pollutant in iaqi_data and isinstance(iaqi_data[pollutant], dict) and 'v' in iaqi_data[pollutant]:
             try:
                 value = float(iaqi_data[pollutant]['v'])
                 log.debug(f"Checking {pollutant.upper()} with value {value}")
 
-                # The thresholds are pre-sorted from highest to lowest.
-                # Find the first (i.e., most severe) threshold that the value meets or exceeds
                 highest_risk_found = None
-                for level_info in sorted(thresholds, key=lambda x: x['threshold'], reverse=True): # Already sorted reverse=True
+                for level_info in sorted(thresholds, key=lambda x: x['threshold'], reverse=True): 
                     if value >= level_info["threshold"]:
                         highest_risk_found = f"{pollutant.upper()} ({level_info['severity']}): {level_info['risk']}"
                         log.info(f"Threshold exceeded for {pollutant.upper()} at value {value} (>= {level_info['threshold']}). Risk: {level_info['risk']}")
@@ -114,12 +105,7 @@ def interpret_pollutant_risks(iaqi_data):
 
 # --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
-    # This block is for direct script execution and serves as a simple self-test.
-    # It is not executed when the module is imported by other parts of the application.
-    # The comprehensive, automated tests for this module are in:
-    # tests/health_rules/test_interpreter.py
 
-    # Configure basic logging to see output from the function
     logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
 
     print("\n" + "="*40)
@@ -133,7 +119,7 @@ if __name__ == "__main__":
         "Poor PM10 & Moderate O3": {'pm10': {'v': 255}, 'o3': {'v': 110}},
         "Very Poor Multiple": {'pm25': {'v': 130}, 'no2': {'v': 300}},
         "Severe SO2": {'so2': {'v': 1700}},
-        "Missing Pollutant Value": {'pm25': {'w': 100}}, # 'w' instead of 'v'
+        "Missing Pollutant Value": {'pm25': {'w': 100}},
         "Invalid Pollutant Value": {'co': {'v': 'high'}},
         "Empty Input": {},
         "None Input": None,

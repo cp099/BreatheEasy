@@ -9,23 +9,19 @@ to classify a numerical AQI value into its corresponding category.
 """
 
 import logging 
-import pandas as pd # Used for the robust pd.isna check
+import pandas as pd
 
 
 log = logging.getLogger(__name__)
 
 
 # --- AQI Definition ---
-# A general-purpose description of the Air Quality Index for educational display.
 AQI_DEFINITION = """
 The Air Quality Index (AQI) is a tool used by government agencies to communicate how polluted the air currently is or how polluted it is forecast to become.
 It helps you understand the potential health effects associated with different levels of air quality.
 """
 
 # --- AQI Scale and Health Implications (India CPCB NAQI Standard) ---
-# This list defines the official CPCB AQI categories, ranges, health impacts,
-# and standard colors.
-# Source: Central Pollution Control Board (CPCB), India.
 AQI_SCALE = [
     {"range": "0-50", "level": "Good", "color": "#228B22", "implications": "Minimal Impact. Air quality is considered satisfactory, and air pollution poses little or no risk."},
     {"range": "51-100", "level": "Satisfactory", "color": "#90EE90", "implications": "Minor breathing discomfort to sensitive people. Air quality is acceptable."},
@@ -49,8 +45,6 @@ def get_aqi_info(aqi_value):
         log.warning(f"Negative AQI value received: {aqi_value}. Returning None.")
         return None
 
-    # --- THIS IS THE CRITICAL FIX ---
-    # To handle "round half up" correctly (e.g., 100.5 -> 101), we add 0.5 and cast to int.
     aqi_value = int(aqi_value + 0.5)
     
     # 2. Find the matching category in the defined scale.
@@ -65,22 +59,15 @@ def get_aqi_info(aqi_value):
             continue
 
     # 3. Handle cases where the AQI value is above the highest defined range.
-    # If the loop completes without finding a match, it means the value is
-    # greater than the highest range, so we return the last category.
     if AQI_SCALE:
         return AQI_SCALE[-1]
 
-    # This fallback should only be reached if AQI_SCALE is empty for some reason.
     log.error("AQI_SCALE constant is empty. Cannot classify value.")
     return None
 
 
 # --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
-    # This block runs only when the script is executed directly.
-    # It serves as a quick test and demonstration of the module's functions.
-    # The comprehensive, automated tests for this module are in:
-    # tests/health_rules/test_info.py
 
     print("\n" + "="*40)
     print(" Running info.py Self-Test ")
@@ -92,7 +79,6 @@ if __name__ == "__main__":
     print("\n" + "-"*40)
     print("--- Testing get_aqi_info with valid values ---")
 
-    # A list of test values covering all categories and boundaries
     valid_test_values = [
         0, 25, 50,          # Good
         51, 75, 100,         # Satisfactory
@@ -106,7 +92,6 @@ if __name__ == "__main__":
     for aqi in valid_test_values:
         info = get_aqi_info(aqi)
         if info:
-            # Using f-string alignment to make the output neat
             print(f"AQI: {aqi:<4} -> Level: {info['level']:<12} | Color: {info['color']:<8} | Implications: {info['implications']}")
         else:
             print(f"AQI: {aqi:<4} -> FAILED to get info, returned None unexpectedly.")
@@ -122,7 +107,6 @@ if __name__ == "__main__":
 
     for aqi in invalid_test_values:
         info = get_aqi_info(aqi)
-        # For invalid inputs, the expected result is None
         if info is None:
             print(f"Input: {str(aqi):<15} -> Correctly returned None as expected.")
         else:

@@ -20,12 +20,10 @@ import sys
 import json
 
 # --- Setup Project Root Path ---
-# This allows the script to be run from anywhere and still find the project root.
 try:
     SCRIPT_DIR = os.path.dirname(__file__)
     PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 except NameError:
-    # Fallback for environments where __file__ is not defined.
     PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname('.'), '..'))
     if not os.path.exists(os.path.join(PROJECT_ROOT, 'src')):
          PROJECT_ROOT = os.path.abspath('.')
@@ -33,13 +31,11 @@ if PROJECT_ROOT not in sys.path:
      sys.path.insert(0, PROJECT_ROOT)
 
 # --- Import Project Modules & Dependencies ---
-# The config_loader import also triggers the centralized logging setup.
 try:
     from src.config_loader import CONFIG
     from src.exceptions import APIKeyError, APITimeoutError, APINotFoundError, APIError, ConfigError
     from src.health_rules.interpreter import interpret_pollutant_risks
 except ImportError as e:
-    # Fallback if dependencies or project structure are not found.
     logging.basicConfig(level=logging.WARNING)
     logging.error(f"AQICN Client: Could not import dependencies. Error: {e}", exc_info=True)
     CONFIG = {'apis': {'aqicn': {'base_url': "https://api.waqi.info/feed"}}, 'api_timeout_seconds': 10}
@@ -52,7 +48,6 @@ except ImportError as e:
         logging.error("Dummy interpret_pollutant_risks called due to import error.")
         return ["Pollutant interpretation unavailable."]
 except Exception as e:
-     # Broad exception for other potential import errors.
      logging.basicConfig(level=logging.WARNING)
      logging.error(f"AQICN Client: Critical error importing dependencies: {e}", exc_info=True)
      raise
@@ -62,7 +57,6 @@ log = logging.getLogger(__name__)
 
 # --- Load API Token from .env file ---
 try:
-    # Looks for .env in the project root directory (e.g., BREATHEEASY/.env).
     dotenv_path = os.path.join(PROJECT_ROOT, '.env') 
     if os.path.exists(dotenv_path):
         loaded = load_dotenv(dotenv_path=dotenv_path)
@@ -75,7 +69,6 @@ except Exception as e:
 
 AQICN_TOKEN = os.getenv('AQICN_API_TOKEN')
 if not AQICN_TOKEN: 
-    # Log this warning once at module level if the token is missing.
     log.warning("AQICN_API_TOKEN is not set. AQICN API calls will likely fail with APIKeyError.")
 
 
@@ -128,8 +121,6 @@ def get_city_aqi_data(city_name_query):
         elif data.get("status") == "error":
             error_message = data.get("data", "Unknown API error reason")
             log.error(f"AQICN API returned error status for '{city_name_query}': {error_message}")
-            # The API returns 'error' status for "Unknown station", which is a valid,
-            # non-exceptional case we handle by returning None.
             if "Unknown station" in str(error_message):
                  log.warning(f"City/Station '{city_name_query}' resulted in 'Unknown station' from AQICN API.")
                  return None 
@@ -149,7 +140,7 @@ def get_city_aqi_data(city_name_query):
         elif status_code == 404: raise APINotFoundError(f"AQICN endpoint or city query '{city_name_query}' not found (404).", service="AQICN") from http_err
         else: raise APIError(f"AQICN HTTP error {status_code} for query '{city_name_query}'.", status_code=status_code, service="AQICN") from http_err
     except requests.exceptions.RequestException as req_err:
-        msg = f"AQICN request error for '{city_name_query}': {req_err}" # E.g., ConnectionError
+        msg = f"AQICN request error for '{city_name_query}': {req_err}" 
         log.error(msg); raise APIError(msg, service="AQICN") from req_err
     except (ValueError, json.JSONDecodeError) as json_err:
         response_text_snippet = response.text[:200] if 'response' in locals() and hasattr(response, 'text') else 'Response object not available or no text attribute'
@@ -158,7 +149,6 @@ def get_city_aqi_data(city_name_query):
 
 
 # --- Wrapper Functions & Helpers ---
-
 def _extract_city_for_aqicn(city_name_full):
     """Helper to get just the city name part if 'City, Country' is passed."""
     return city_name_full.split(',')[0].strip()
@@ -252,7 +242,6 @@ def get_current_pollutant_risks_for_city(city_name_full):
 
 # --- Example Usage / Direct Execution ---
 if __name__ == "__main__":
-    # This block runs only when the script is executed directly, serving as a self-test.
     if not logging.getLogger().hasHandlers():
         logging.basicConfig(stream=sys.stdout, level=logging.INFO, 
                             format='%(asctime)s - [%(levelname)s] - %(name)s - %(module)s.%(funcName)s:%(lineno)d - %(message)s')
