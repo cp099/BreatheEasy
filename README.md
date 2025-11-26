@@ -36,6 +36,38 @@ The application features a fully responsive, dual-theme interface that adapts to
 *   **Persistent Background Data Collection:** A background process collects system metrics continuously from the moment the app starts, ensuring a complete history is available whenever the performance hub is viewed.
 *   **Dynamic UI Components:** The dashboard features custom-built SVG gauges and responsive layouts that adapt to different screen sizes.
 
+## Our Contributors
+
+A massive thank you to the talented team that brought BreatheEasy to life. Their dedication and collaboration were instrumental to this project's success.
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <a href="https://github.com/cp099">
+          <img src="https://avatars.githubusercontent.com/cp099" width="100px;" alt="Chirag P Patil" style="border-radius: 50%"/>
+          <br />
+          <sub><b>Chirag P Patil</b></sub>
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/kimayaa23">
+          <img src="https://avatars.githubusercontent.com/kimayaa23" width="100px;" alt="Kimaya Anand" style="border-radius: 50%"/>
+          <br />
+          <sub><b>Kimaya Anand</b></sub>
+        </a>
+      </td>
+      <td align="center">
+        <a href="https://github.com/arnavmeow">
+          <img src="https://avatars.githubusercontent.com/arnavmeow" width="100px;" alt="Arnav Vaidya" style="border-radius: 50%"/>
+          <br />
+          <sub><b>Arnav Vaidya</b></sub>
+        </a>
+      </td>
+    </tr>
+  </table>
+</div>
+
 ## How It Works
 
 The application is architected with a clear separation between the backend data processes and the frontend presentation layers.
