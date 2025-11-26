@@ -1,14 +1,14 @@
-#
-# Main configuration for the BreatheEasy project.
-#
+# File: config/config.yaml
 
 # --- File and Directory Paths ---
 # Relative to the project root directory.
 paths:
-  data_file: data/Post-Processing/CSV_Files/Master_AQI_Dataset.csv
+  # The primary dataset used for training the daily models.
+  data_file: data/Post-Processing/CSV_Files/Master_Daily_Features.csv
   models_dir: models/
 
 # --- API Configuration ---
+# Base URLs for external data services.
 apis:
   aqicn:
     base_url: "https://api.waqi.info/feed"
@@ -20,38 +20,22 @@ apis:
 modeling:
   # List of cities for which models will be trained and predictions generated.
   target_cities:
-    - Delhi
-    - Mumbai
     - Bangalore
     - Chennai
-    - Hyderabad
+    - Kolkata
+    - Mumbai
 
-  # Version suffix for saving/loading Prophet models.
-  # Change this to retrain models with new parameters.
-  prophet_model_version: "v3_weather"
-
-  # Number of days to forecast ahead.
+  # Number of days to forecast ahead for the user interface.
   forecast_days: 3
-
-  # Decay factor for applying historical residuals to the forecast.
-  # A value of 0.85 means the residual's effect decreases by 15% each day.
-  residual_decay_factor: 0.85
-
-  # Weather features from the dataset to be used as regressors in the Prophet model.
-  # Ensure these column names exist in the historical data and can be fetched
-  # for future dates from the weather forecast API.
-  weather_regressors:
-    - temperature_2m
-    - relative_humidity_2m
-    - wind_speed_10m
-    # - rain
-    # - pressure_msl
-    # - cloud_cover
-    # - wind_gusts_10m
-    # Note: Avoid using highly correlated features like apparent_temperature or dew_point_2m
-    # if temperature_2m and relative_humidity_2m are already included.
+  
+  # The maximum value for the initial live residual in the "Anchor and Trend" logic.
+  # This prevents a single, massive error on day 0 from skewing the entire forecast.
+  # A value of 75 means if the live AQI is 200 and the model predicts 100 (a 100-point error),
+  # the system will cap the error at 75 when starting its forecast.
+  max_residual_cap: 75
 
 # --- API Retry and Timeout Settings ---
+# These settings make the application more resilient to network failures.
 api_timeout_seconds: 15
 api_retries:
   default: 2

@@ -1,11 +1,4 @@
-# ==============================================================================
-# BREATHEEASY PROJECT .GITIGNORE
-# ==============================================================================
-# This file specifies intentionally untracked files that Git should ignore.
-#
-# IMPORTANT: If you have already committed any of these files, you must remove
-# them from the repository using `git rm --cached <file>`.
-# ==============================================================================
+# File: `.gitignore`
 
 # --- Environments & Runtimes ---
 # Virtual Environments
@@ -103,11 +96,7 @@ instance/
 
 # --- Environment & Version Managers ---
 .python-version
-# Pipenv, Poetry, PDM lock files (uncomment if you use them)
-# Pipfile.lock
-# poetry.lock
-# pdm.lock
-# .pdm.toml
+
 
 # --- Internationalization / Translations ---
 *.mo
@@ -167,9 +156,8 @@ data/Post-Processing/CSV_Files/Kolkata_Weather_Dataset.csv
 data/Post-Processing/CSV_Files/Mumbai_Weather_Dataset.csv
 
 
-# Ignore generated Excel files if any are created.
 *.xlsx
-# data/Post-Processing/XLSX_Files/ # Uncomment to ignore the whole folder.
+
 
 # --- Logs ---
 # Ignore all log files, including rotated ones (e.g., app.log.1).

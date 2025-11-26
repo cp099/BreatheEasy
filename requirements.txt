@@ -1,47 +1,28 @@
-# ===================================================================
-# Python Package Requirements for the BreatheEasy Project
-# ===================================================================
-#
-# Use this file to install the required packages:
-# pip install -r requirements.txt
-#
-# It is recommended to install these in a virtual environment.
-# -------------------------------------------------------------------
+# File: requirements.txt
 
 # --- Core Application & Web Framework ---
-# Dash is the main framework for the web user interface.
 dash
 dash-svg
 
 # --- Data Science & Modeling ---
-# Pandas and NumPy for data manipulation and numerical operations.
 pandas
 numpy
 scikit-learn
-# LightGBM for high-performance gradient boosting.
 lightgbm
 
 
 # --- API & Web Requests ---
-# Used for making HTTP requests to external APIs (WeatherAPI, AQICN).
 requests
 
 # --- Configuration & Environment ---
-# For parsing YAML configuration files (config.yaml).
 PyYAML
-# For loading environment variables from the .env file (e.g., API keys).
 python-dotenv
 
 # --- Testing Framework ---
-# Pytest is used for running the automated test suite.
 pytest
-# Pytest-mock provides a convenient mocker fixture for tests.
 pytest-mock
 
 # --- Development & Data Analysis ---
-# These packages are useful for development, analysis, and visualization,
-# but are not strictly required to run the main application.
-# Matplotlib and Seaborn for plotting and data visualization.
 matplotlib
 seaborn
 notebook
