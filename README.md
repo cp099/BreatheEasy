@@ -159,7 +159,7 @@ Follow these steps to set up and run the BreatheEasy dashboard on your local mac
 
 ### 2. Clone the Repository
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/cp099/BreatheEasy
 cd BreatheEasy
 ```
 
