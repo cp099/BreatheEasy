@@ -111,9 +111,11 @@ def _make_weatherapi_request(url, params, city_name_for_log, max_retries_cfg, re
                     return None
                 elif err_code in [1002,1003,1005,2006,2007,2008]: raise APIKeyError(f"Code {err_code}: {err_msg}", service="WeatherAPI")
                 else: 
+                    status_code = response.status_code
+                    response_text_snippet = response.text[:200] if hasattr(response, 'text') else "N/A"
                     base_msg_for_exception = f"HTTP error {status_code} encountered for {context} query on '{city_name_for_log}'."
-                    log.error(f"WeatherAPI: {base_msg_for_exception} Original HTTPError detail: {str(http_err)}. Resp: {response_text_snippet}")
-                    raise APIError(base_msg_for_exception, status_code=status_code, service="WeatherAPI") from http_err
+                    log.error(f"WeatherAPI: {base_msg_for_exception} Resp: {response_text_snippet}")
+                    raise APIError(base_msg_for_exception, status_code=status_code, service="WeatherAPI")
             return data
         except requests.exceptions.HTTPError as http_err:
             status = http_err.response.status_code if http_err.response else 0

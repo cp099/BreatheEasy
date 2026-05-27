@@ -11,7 +11,7 @@ import psutil
 from datetime import datetime
 
 # --- Import from the new shared data file ---
-from shared_data import cpu_data, ram_data, net_data, last_net_io, last_net_time
+import shared_data
 
 # Initialize the Dash App
 app = dash.Dash(
@@ -37,27 +37,24 @@ app.layout = html.Div([
     Input('background-data-interval', 'n_intervals')
 )
 def update_background_data(n):
-    # This now needs to be a mutable global, which is fine for deques
-    global last_net_io, last_net_time
-    
     now = datetime.now()
     cpu_percent = psutil.cpu_percent()
     ram_percent = psutil.virtual_memory().percent
     
     current_net_io = psutil.net_io_counters()
-    time_delta = (now - last_net_time).total_seconds()
+    time_delta = (now - shared_data.last_net_time).total_seconds()
     if time_delta > 0:
-        net_in_rate = (current_net_io.bytes_recv - last_net_io.bytes_recv) / time_delta / 1024
-        net_out_rate = (current_net_io.bytes_sent - last_net_io.bytes_sent) / time_delta / 1024
+        net_in_rate = (current_net_io.bytes_recv - shared_data.last_net_io.bytes_recv) / time_delta / 1024
+        net_out_rate = (current_net_io.bytes_sent - shared_data.last_net_io.bytes_sent) / time_delta / 1024
     else:
         net_in_rate, net_out_rate = 0, 0
     
-    last_net_io = current_net_io
-    last_net_time = now
+    shared_data.last_net_io = current_net_io
+    shared_data.last_net_time = now
     
-    cpu_data.append((now, cpu_percent))
-    ram_data.append((now, ram_percent))
-    net_data.append((now, net_in_rate, net_out_rate))
+    shared_data.cpu_data.append((now, cpu_percent))
+    shared_data.ram_data.append((now, ram_percent))
+    shared_data.net_data.append((now, net_in_rate, net_out_rate))
     
     return ""
 

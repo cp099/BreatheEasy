@@ -86,10 +86,10 @@ def test_get_daily_summary_forecast_success(mock_dependencies):
     assert "predicted_aqi" in forecast[0]
     assert "level" in forecast[0]
     
-    # 2. Assert the "Anchor and Trend" logic
-    assert forecast[0]['predicted_aqi'] == 135
-    assert forecast[1]['predicted_aqi'] == 135
-    assert forecast[2]['predicted_aqi'] == 135
+    # 2. Assert the "Exponential Residual Decay" calibration logic
+    assert forecast[0]['predicted_aqi'] == 144
+    assert forecast[1]['predicted_aqi'] == 148
+    assert forecast[2]['predicted_aqi'] == 149
 
 def test_get_daily_summary_forecast_model_not_found(mocker):
     """
