@@ -12,7 +12,7 @@ We are committed to ensuring the security of the latest version of BreatheEasy o
 
 The BreatheEasy team and community take all security vulnerabilities seriously. We appreciate your efforts to responsibly disclose your findings, and will make every effort to acknowledge your contributions.
 
-To report a security vulnerability, please send an email to **[YOUR_EMAIL_ADDRESS_HERE]** with "SECURITY" in the subject line.
+To report a security vulnerability, please send an email to **chiragpatil07@gmail.com** with "SECURITY" in the subject line.
 
 Please include the following information in your report:
 - A clear description of the vulnerability.
