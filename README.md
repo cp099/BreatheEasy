@@ -31,7 +31,7 @@ The application features a fully responsive, dual-theme interface that adapts to
 ## Core Features
 
 *   **Interactive Main Dashboard:** A user-friendly interface to view current AQI, pollutant risks, historical trends, and educational information. Features a seamless dual-theme (light/dark) experience.
-*   **Intelligent 3-Day Forecast:** A sophisticated "Anchor and Trend" forecasting model that uses a raw LightGBM prediction and calibrates it against live AQI data for improved accuracy. The smoothing factor is dynamic, trusting the model more when its predictions are accurate and less when they are not.
+*   **Intelligent 3-Day Forecast:** A sophisticated "Exponential Residual Decay" calibration model that uses raw LightGBM predictions and calibrates them against live, real-time AQI data. The initial forecast error (residual) is decayed exponentially over the 3-day window using a dynamic decay rate ($\gamma$) based on the magnitude of the live error, preserving the weather-driven forecast trend while correcting for absolute scale errors.
 *   **Live Performance Hub:** A real-time monitoring page (`/performance`) that displays live system metrics (CPU, Memory, Network I/O) via time-series graphs, tracks application process details, and provides a view of the live application logs.
 *   **Persistent Background Data Collection:** A background process collects system metrics continuously from the moment the app starts, ensuring a complete history is available whenever the performance hub is viewed.
 *   **Dynamic UI Components:** The dashboard features custom-built SVG gauges and responsive layouts that adapt to different screen sizes.
@@ -72,9 +72,10 @@ A massive thank you to the talented team that brought BreatheEasy to life. Their
 
 The application is architected with a clear separation between the backend data processes and the frontend presentation layers.
 
-1.  **Model Training (Offline):**
-    *   The `src/modeling/train.py` script trains a `LightGBM` model for each city on the `Master_Daily_Features.csv` dataset.
-    *   The trained models are saved as `.pkl` files in the `/models` directory, along with their validation scores and feature importances.
+1.  **Model Training & Data Pipeline:**
+    *   The `src/modeling/train.py` script trains a `LightGBM` model for each target city on the daily feature dataset. It incorporates optimized, city-specific tuned hyperparameters for Bangalore, Chennai, Kolkata, and Mumbai.
+    *   The trained models are saved as `.pkl` files in the `/models` directory, along with their out-of-sample validation scores and feature importances.
+    *   The automated data and model rebuilding pipeline is managed by `scripts/rebuild_data_and_models.py`.
 
 2.  **Application Startup (Backend):**
     *   When `python app.py` is run, the main Dash application starts.
@@ -82,7 +83,7 @@ The application is architected with a clear separation between the backend data 
 
 3.  **User Interaction (Frontend):**
     *   A user navigates to the main dashboard (`/`). Selecting a city triggers callbacks in `pages/dashboard.py`.
-    *   **Forecasting:** The `predictor.py` module is called. It loads the pre-trained LightGBM model, fetches a weather forecast, generates a raw AQI prediction, and then applies the "Anchor and Trend" logic by comparing it to a live AQI value.
+    *   **Forecasting:** The `predictor.py` module is called. It loads the pre-trained LightGBM model, fetches a weather forecast, generates a raw AQI prediction, and then applies the "Exponential Residual Decay" calibration logic by comparing it to the live AQI anchor and decaying the initial residual over future days.
     *   **Real-time Data:** The application fetches current AQI, pollutant levels, and weather from external APIs.
     *   The UI is dynamically updated with the forecast, gauges, and health advisories.
 
@@ -210,15 +211,15 @@ The application will start, and you can access the dashboard by navigating to th
 
 ---
 
-## (Optional) Retraining the Models
+## (Optional) Retraining the Models & Updating Data
 
-If you wish to retrain the models with new data:
+The project features a unified data rebuilding and model retraining pipeline. If you wish to refresh the historical datasets with the latest weather and air quality observations and retrain the forecasting models:
 
-1.  **Prepare Data:** Ensure your `data/Post-Processing/CSV_Files/Master_Daily_Features.csv` is up to date.
-2.  **Run Training Script:** Execute the training script from the project's root directory. This will overwrite the existing model files in the `/models` directory.
+1.  **Run the Unified Rebuild Script**: Run the following helper script from the project's root directory. It automatically downloads clean hourly historical weather and air quality data from Open-Meteo from October 2022 to the present, computes daily CPCB AQI, constructs lagged features, and retrains all daily LightGBM models using their tuned city-specific hyperparameters:
     ```bash
-    python src/modeling/train.py
+    python scripts/rebuild_data_and_models.py
     ```
+2.  **Verify Performance**: Confirm that all new models are successfully generated in the `/models` directory and check the updated validation score files.
 
 ## Contributing
 
