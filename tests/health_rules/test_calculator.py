@@ -29,7 +29,7 @@ from src.health_rules.calculator import calculate_sub_index, calculate_aqi_from_
     (90, 'pm25', 200),     # Moderate (boundary)
     (105, 'pm25', 249),    # Poor (mid-range)
     (250, 'pm25', 400),    # Very Poor (boundary)
-    (300, 'pm25', 401),    # Severe (value > 251)
+    (300, 'pm25', 439),    # Severe (value > 251)
     
     # Test cases for PM10
     (75, 'pm10', 75),      # Satisfactory

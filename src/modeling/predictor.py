@@ -124,53 +124,37 @@ def get_daily_summary_forecast(city_name: str, days_ahead: int = 3):
         })
         log.info(f"Generated raw model forecast:\n{raw_forecast_df}")
         
-        # --- Step 3: Apply the "Anchor and Trend" Correction ---
+        # --- Step 3: Apply the "Exponential Residual Decay" Calibration Model ---
         prediction_for_today = raw_forecast_df['raw_pred'].iloc[0]
         live_residual = live_aqi_value - prediction_for_today
+        abs_residual = abs(live_residual)
         
-        # Apply the residual to the model's prediction for TODAY.
-        # This becomes the starting point for our final forecast.
-        final_forecast_values = [live_aqi_value]
+        # Determine the dynamic decay factor (gamma) based on the magnitude of the error
+        low_residual_threshold = 20
+        high_residual_threshold = 100
+        decay_low = 0.4   # Fast decay (high trust in model baseline)
+        decay_high = 0.8  # Slow decay (transient local anomaly persists longer)
         
-        # Now, calculate the day-to-day CHANGES from the raw forecast.
-        # Example: if raw forecast is [180, 190, 185], the changes are [+10, -5]
-        day_to_day_changes = raw_forecast_df['raw_pred'].diff().dropna()
+        if abs_residual <= low_residual_threshold:
+            gamma = decay_low
+        elif abs_residual >= high_residual_threshold:
+            gamma = decay_high
+        else:
+            # Linearly interpolate the decay factor for residuals between the thresholds.
+            slope = (decay_high - decay_low) / (high_residual_threshold - low_residual_threshold)
+            gamma = decay_low + slope * (abs_residual - low_residual_threshold)
+            
+        log.info(f"Live residual is {live_residual:.1f}. Dynamic error decay factor (gamma) is {gamma:.2f}.")
         
-        # Apply these changes to our anchored value.
-        for change in day_to_day_changes:
+        # Calculate calibrated forecast for future days (excluding today's anchor)
+        # Formula: F_t_calibrated = F_t + R_0 * (gamma ** t)
+        final_forecast_for_ui_raw = []
+        for t in range(1, days_ahead + 1):
+            raw_pred_t = raw_forecast_df['raw_pred'].iloc[t]
+            calibrated_value = raw_pred_t + live_residual * (gamma ** t)
+            final_forecast_for_ui_raw.append(calibrated_value)
             
-            # --- START: New Dynamic Smoothing Logic ---
-            
-            # Define thresholds for the residual.
-            low_residual_threshold = 20  # If error is less than 20, trust the model more.
-            high_residual_threshold = 100 # If error is over 100, trust the model very little.
-
-            # Define smoothing factors based on trust.
-            trust_factor_high = 0.8  # Trust the model's trend 80%
-            trust_factor_low = 0.2   # Only trust the model's trend 20%
-            
-            abs_residual = abs(live_residual)
-
-            if abs_residual <= low_residual_threshold:
-                smoothing_factor = trust_factor_high
-            elif abs_residual >= high_residual_threshold:
-                smoothing_factor = trust_factor_low
-            else:
-                # Linearly interpolate the smoothing factor for residuals between the thresholds.
-                # This creates a smooth transition from high trust to low trust.
-                slope = (trust_factor_low - trust_factor_high) / (high_residual_threshold - low_residual_threshold)
-                smoothing_factor = trust_factor_high + slope * (abs_residual - low_residual_threshold)
-
-            log.info(f"Live residual is {live_residual:.1f}. Applying dynamic smoothing factor of {smoothing_factor:.2f}.")
-            smoothed_change = change * smoothing_factor
-            
-            # --- END: New Dynamic Smoothing Logic ---
-            
-            next_day_value = final_forecast_values[-1] + smoothed_change
-            final_forecast_values.append(next_day_value)
-            
-        # We only need the future days, so we skip the first value (today's anchor)
-        final_forecast_for_ui = final_forecast_values[1:]
+        final_forecast_for_ui = final_forecast_for_ui_raw
 
         # 4. Format for the UI
         ui_list = []

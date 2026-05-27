@@ -63,21 +63,37 @@ def train_and_save_models(data_path: str, models_dir: str):
 
         print(f"Training with {len(X_train)} samples, validating with {len(X_val)} samples.")
         
+        # Tuned hyperparameters for each city
+        city_params = {
+            "Bangalore": {
+                'subsample': 0.9, 'reg_lambda': 0.0, 'reg_alpha': 0.1, 'num_leaves': 20,
+                'n_estimators': 400, 'max_depth': 5, 'learning_rate': 0.07, 'colsample_bytree': 0.9
+            },
+            "Chennai": {
+                'subsample': 0.8, 'reg_lambda': 0.05, 'reg_alpha': 0.5, 'num_leaves': 10,
+                'n_estimators': 100, 'max_depth': 8, 'learning_rate': 0.1, 'colsample_bytree': 0.9
+            },
+            "Kolkata": {
+                'subsample': 0.8, 'reg_lambda': 1.0, 'reg_alpha': 1.0, 'num_leaves': 25,
+                'n_estimators': 100, 'max_depth': 8, 'learning_rate': 0.07, 'colsample_bytree': 1.0
+            },
+            "Mumbai": {
+                'subsample': 0.7, 'reg_lambda': 0.05, 'reg_alpha': 0.1, 'num_leaves': 20,
+                'n_estimators': 150, 'max_depth': 5, 'learning_rate': 0.03, 'colsample_bytree': 0.5
+            }
+        }
+        
+        params = city_params.get(city, {
+            'subsample': 0.7, 'reg_lambda': 0.1, 'reg_alpha': 0.1, 'num_leaves': 20,
+            'n_estimators': 300, 'max_depth': 7, 'learning_rate': 0.05, 'colsample_bytree': 0.7
+        })
+        
         lgbm = lgb.LGBMRegressor(
             objective='regression_l1',
-            n_estimators=300,        
-            learning_rate=0.05,       
-            num_leaves=20,            
-            max_depth=7,              
-
-            subsample=0.7,           
-            subsample_freq=1,        
-            colsample_bytree=0.7,     
-            
-            reg_alpha=0.1,           
-            reg_lambda=0.1,           
+            subsample_freq=1,
             random_state=42,
-            n_jobs=-1
+            n_jobs=-1,
+            **params
         )
         
         print("Starting training...")
